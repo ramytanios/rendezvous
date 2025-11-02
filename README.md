@@ -1,3 +1,3 @@
-# Rates vanilla scope 
+# Rendezvous Hashing
 
-Interest rates forward computations, vanilla pricing and volatility arbitrage checks.
+An implementation of the [Rendezvous Hashing](https://en.wikipedia.org/wiki/Rendezvous_hashing) algorithm with an illustrative GUI 🤓
