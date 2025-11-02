@@ -1,0 +1,21 @@
+*.class
+*.log
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+
+target/
+.metals/
+/.bsp/
+.bloop/
+.metals/
+.scala-build/
+metals.sbt
+target/
+yarn.lock
+.java-version
+node_modules
+.vscode/ 
+.env 
+.direnv/
+.devenv/
