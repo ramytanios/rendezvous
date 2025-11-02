@@ -8,4 +8,6 @@ trait Hash:
 
 object Hash:
 
+  def apply(): Hash = mmh3()
+
   def mmh3(): Hash = MurmurHash3.stringHash(_)
