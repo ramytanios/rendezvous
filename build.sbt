@@ -34,7 +34,7 @@ lazy val V = new {
 }
 
 lazy val root =
-  (project in file(".")).aggregate(dtos.jvm, lib, backend, frontend)
+  (project in file(".")).aggregate(dtos.jvm, backend, frontend)
 
 lazy val dtos = crossProject(JSPlatform, JVMPlatform)
   .in(file("dtos"))
@@ -48,8 +48,7 @@ lazy val dtos = crossProject(JSPlatform, JVMPlatform)
         "io.circe" %% "circe-parser" % V.circe
       ),
     scalacOptions -= "-Xfatal-warnings"
-  ).dependsOn(`lib-dtos`)
-
+  )
 
 lazy val frontend = project
   .in(file("frontend"))
