@@ -4,7 +4,7 @@ import scala.util.hashing.MurmurHash3
 
 trait Hash:
 
-  def hash(str: String): Int
+  def hash(s: String): Int
 
 object Hash:
 
