@@ -4,6 +4,10 @@ import cats.effect.IO
 
 trait Engine:
 
-  def addNode(node: Node): IO[Unit]
+  def activeNodes: IO[Seq[Node]]
+
+  def createNode: IO[Node]
 
   def removeNode(id: String): IO[Node]
+
+  def addInstrument(ins: Instrument): IO[Node]
