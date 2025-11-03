@@ -19,9 +19,9 @@ lazy val V = new {
   val literally = "1.2.0"
   val mouse = "1.3.0"
   val ff4s = "0.26.1"
-  val http4s = "0.23.27"
   val monocle = "3.3.0"
   val logback = "1.5.7"
+  val http4s = "0.23.27"
   val test = "0.7.29"
   val `cats-effect` = "3.5.4"
   val `cats-time` = "0.5.1"
@@ -91,7 +91,10 @@ lazy val backend = project
         "org.typelevel" %% "literally" % V.literally,
         "org.typelevel" %% "log4cats-core" % V.`log-4cats`,
         "org.typelevel" %% "log4cats-slf4j" % V.`log-4cats`,
-        "org.apache.commons" % "commons-math3" % V.`commons-math`
+        "org.apache.commons" % "commons-math3" % V.`commons-math`,
+        "org.http4s" %% "http4s-dsl" % V.http4s,
+        "org.http4s" %% "http4s-circe" % V.http4s,
+        "org.http4s" %% "http4s-ember-server" % V.http4s
       ),
     scalacOptions -= "-Xfatal-warnings"
   )

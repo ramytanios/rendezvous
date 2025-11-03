@@ -1,13 +1,15 @@
 package backend
 
 import cats.effect.IO
-import cats.effect.std.Supervisor
-import cats.effect.kernel.Resource
-import fs2.concurrent.SignallingMapRef
 import cats.effect.kernel.Fiber
-import cats.syntax.all.*
-import cats.effect.std.MapRef
 import cats.effect.kernel.Ref
+import cats.effect.kernel.Resource
+import cats.effect.std.MapRef
+import cats.effect.std.Supervisor
+import cats.syntax.all.*
+import fs2.concurrent.SignallingMapRef
+
+import scala.concurrent.duration.*
 
 trait Node:
 
@@ -27,6 +29,14 @@ object Node:
       fibers <- SignallingMapRef
         .ofSingleImmutableMap[IO, String, Fiber[IO, Throwable, Unit]]()
         .toResource
+      _ <- supervisor.supervise:
+        fs2.Stream // makes this stream tied to the supervisor life and not the calling fiber
+          .fixedRateStartImmediately[IO](3.seconds)
+          .evalMap: _ =>
+            IO.println(s"Node $uuid is up and running")
+          .compile
+          .drain
+      .toResource
     yield new Node:
 
       def id: String = uuid.toString
