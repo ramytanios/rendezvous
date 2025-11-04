@@ -14,6 +14,10 @@ fmt:
     just --fmt --unstable
 
 [unix]
+ws:
+  websocat ws://localhost:8090/api/ws
+
+[unix]
 scalafmt:
     sbt scalafmtAll
 

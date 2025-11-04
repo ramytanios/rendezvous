@@ -24,7 +24,7 @@ final class Server(
   private def constructRoutes(wsb: WebSocketBuilder2[IO]): HttpRoutes[IO] =
     val route =
       new Websocket().apply[dtos.WSProtocol.Client, dtos.WSProtocol.Server](receiveSend)(wsb)
-    Router("/api" -> route)
+    Router("/api/ws" -> route)
 
   def run: IO[Unit] =
     for
