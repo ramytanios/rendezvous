@@ -6,10 +6,10 @@ import cats.effect.kernel.Ref
 import cats.effect.kernel.Resource
 import cats.effect.std.Supervisor
 import cats.syntax.all.*
+import fs2.concurrent.Signal
 import fs2.concurrent.SignallingRef
 
 import java.util.UUID
-import fs2.concurrent.Signal
 
 trait Engine:
 

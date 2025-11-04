@@ -2,6 +2,7 @@ package dtos
 
 import io.circe.Codec
 import io.circe.generic.semiauto.*
+
 import java.util.UUID
 
 object WSProtocol:

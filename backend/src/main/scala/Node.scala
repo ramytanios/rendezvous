@@ -9,8 +9,8 @@ import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingMapRef
 
-import scala.concurrent.duration.*
 import java.util.UUID
+import scala.concurrent.duration.*
 
 trait Node:
 
@@ -29,7 +29,7 @@ object Node:
         .ofSingleImmutableMap[IO, UUID, Fiber[IO, Throwable, Unit]]()
         .toResource
       _ <- fs2.Stream
-        .fixedRate[IO](3.seconds)
+        .fixedRateStartImmediately[IO](3.seconds)
         .evalMap: _ =>
           IO.println(s"Node $uuid is up and running")
         .compile
@@ -42,9 +42,12 @@ object Node:
       def add(data: Data): IO[Unit] =
         IO.println(s"adding data $data") *>
           supervisor
-            .supervise(fs2.Stream.fixedRate[IO](3.seconds).evalMap(_ =>
-              IO.println(s"$data")
-            ).compile.drain)
+            .supervise:
+              fs2.Stream
+                .fixedRateStartImmediately[IO](3.seconds)
+                .evalMap(_ => IO.println(s"$data"))
+                .compile
+                .drain
             .flatMap: fib =>
               fibers.getAndSetKeyValue(data.id, fib) <* instruments.update(_ + data)
             .flatMap(_.foldMapM(_.cancel))
