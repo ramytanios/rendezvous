@@ -10,14 +10,13 @@ import cats.syntax.all.*
 import fs2.concurrent.SignallingMapRef
 
 import scala.concurrent.duration.*
+import java.util.UUID
 
 trait Node:
 
-  def id: String
+  def add(ins: Data, f: Data => IO[Unit]): IO[Unit]
 
-  def add(ins: Instrument, f: Instrument => IO[Unit]): IO[Unit]
-
-  def active: IO[Seq[Instrument]]
+  def data: IO[Seq[Data]]
 
 object Node:
 
@@ -25,25 +24,22 @@ object Node:
     for
       uuid <- IO.randomUUID.toResource
       supervisor <- Supervisor[IO]
-      instruments <- Ref.of[IO, Set[Instrument]](Set.empty).toResource
+      instruments <- Ref.of[IO, Set[Data]](Set.empty).toResource
       fibers <- SignallingMapRef
-        .ofSingleImmutableMap[IO, String, Fiber[IO, Throwable, Unit]]()
+        .ofSingleImmutableMap[IO, UUID, Fiber[IO, Throwable, Unit]]()
         .toResource
-      _ <- supervisor.supervise:
-        fs2.Stream // makes this stream tied to the supervisor life and not the calling fiber
-          .fixedRateStartImmediately[IO](3.seconds)
-          .evalMap: _ =>
-            IO.println(s"Node $uuid is up and running")
-          .compile
-          .drain
-      .toResource
+      _ <- fs2.Stream
+        .fixedRateStartImmediately[IO](3.seconds)
+        .evalMap: _ =>
+          IO.println(s"Node $uuid is up and running")
+        .compile
+        .drain
+        .background
     yield new Node:
 
-      def id: String = uuid.toString
+      def data: IO[Seq[Data]] = instruments.get.map(_.toSeq)
 
-      def active: IO[Seq[Instrument]] = instruments.get.map(_.toSeq)
-
-      def add(ins: Instrument, f: Instrument => IO[Unit]): IO[Unit] =
+      def add(ins: Data, f: Data => IO[Unit]): IO[Unit] =
         supervisor
           .supervise(f(ins))
           .flatMap: fib =>

@@ -1,10 +1,14 @@
 package backend
 
 import cats.effect.IO
+import cats.effect.kernel.Fiber
 import cats.effect.kernel.Ref
 import cats.effect.kernel.Resource
+import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingRef
+
+import java.util.UUID
 
 trait Engine:
 
@@ -12,52 +16,64 @@ trait Engine:
 
   def createNode: IO[Unit]
 
-  def removeNode(id: String): IO[Unit]
+  def removeNode(nodeId: UUID): IO[Unit]
 
-  def addInstrument(ins: Instrument): IO[Unit]
+  def addData(data: Data): IO[Unit]
 
 object Engine:
 
   def apply(): Resource[IO, Engine] =
     for
+      supervisor <- Supervisor[IO]
       hash <- IO.unit.as(Hash.mmh3()).toResource
-      nodesRef <- SignallingRef.of[IO, Map[String, Node]](Map.empty).toResource
-      nodeScoreByIns <- Ref.of[IO, Map[String, List[String]]](Map.empty).toResource
+      nodesRef <- SignallingRef.of[IO, Map[UUID, Node]](Map.empty).toResource
+      nodeScoreByData <- Ref.of[IO, Map[UUID, List[UUID]]](Map.empty).toResource
+      fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
     yield new Engine:
 
       def activeNodes: IO[Seq[Node]] = nodesRef.get.map(_.values.toSeq)
 
-      def addImpl(ins: Instrument): IO[Unit] =
+      def addImpl(data: Data): IO[Unit] =
         nodesRef.get.flatMap: nodes =>
-          nodeScoreByIns.get.flatMap: scores =>
-            scores.get(ins.id).foldMapM: sortedNodes =>
+          nodeScoreByData.get.flatMap: scores =>
+            scores.get(data.id).foldMapM: sortedNodes =>
               sortedNodes.lastOption.foldMapM: nodeId =>
                 nodes.get(nodeId).foldMapM: node =>
-                  node.add(ins, _ => IO.unit)
+                  node.add(data, _ => IO.unit)
 
-      def addInstrument(ins: Instrument): IO[Unit] =
+      def addData(data: Data): IO[Unit] =
         nodesRef.get.flatMap: nodes =>
           val scores = nodes.keys.toList
-            .map(nodeId => nodeId -> hash.hash(s"${ins.id}${nodeId}"))
+            .map(nodeId => nodeId -> hash.hash(s"${data.id}${nodeId}"))
             .sortBy(_(1))
-          nodeScoreByIns
-            .update(_ + (ins.id -> scores.map(_(0))))
-            .flatMap(_ => addImpl(ins))
+          nodeScoreByData
+            .update(_ + (data.id -> scores.map(_(0))))
+            .flatMap(_ => addImpl(data))
 
       def createNode: IO[Unit] =
-        Node()
-          .evalTap: node =>
-            nodesRef.update(_ + (node.id -> node))
-          .useForever
+        IO.randomUUID.flatMap: nodeId =>
+          supervisor.supervise:
+            fs2.Stream.resource(
+              Node().evalTap: node =>
+                nodesRef.update(_ + (nodeId -> node))
+            ).compile.drain
+          .flatMap: fib =>
+            fibers.update(_ + (nodeId -> fib))
 
-      def removeNode(id: String): IO[Unit] = // TODO: cancel running node
-        nodesRef.get.flatMap: nodes =>
-          nodes.get(id).foldMapM: node =>
-            nodesRef.update(_ - id) *>
+      def removeNode(nodeId: UUID): IO[Unit] =
+        nodesRef.get
+          .flatMap: nodes =>
+            nodes.get(nodeId).foldMapM: node =>
               fs2.Stream
-                .evalSeq(node.active)
-                .parEvalMapUnbounded: ins =>
-                  nodeScoreByIns.update(_.updatedWith(ins.id)(_.map(_.dropRight(1))))
-                    .flatMap(_ => addImpl(ins))
+                .evalSeq(node.data)
+                .parEvalMapUnbounded: data =>
+                  nodeScoreByData.update(_.updatedWith(data.id)(_.map(_.dropRight(1))))
+                    .flatMap(_ => addImpl(data))
                 .compile
                 .drain
+          .flatMap: _ =>
+            nodesRef.update(_ - nodeId)
+          .flatMap: _ =>
+            fibers.get.flatMap(_.get(nodeId).foldMapM(_.cancel))
+          .flatMap: _ =>
+            IO.println(s"Node $nodeId is removed")
