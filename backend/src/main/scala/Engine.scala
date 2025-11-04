@@ -9,10 +9,11 @@ import cats.syntax.all.*
 import fs2.concurrent.SignallingRef
 
 import java.util.UUID
+import fs2.concurrent.Signal
 
 trait Engine:
 
-  def activeNodes: IO[Seq[Node]]
+  def nodes: Signal[IO, Map[UUID, Node]]
 
   def createNode: IO[Unit]
 
@@ -31,7 +32,7 @@ object Engine:
       fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
     yield new Engine:
 
-      def activeNodes: IO[Seq[Node]] = nodesRef.get.map(_.values.toSeq)
+      def nodes: Signal[IO, Map[UUID, Node]] = nodesRef
 
       def addImpl(data: Data): IO[Unit] =
         nodesRef.get.flatMap: nodes =>

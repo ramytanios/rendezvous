@@ -2,6 +2,7 @@ package dtos
 
 import io.circe.Codec
 import io.circe.generic.semiauto.*
+import java.util.UUID
 
 object WSProtocol:
 
@@ -15,6 +16,7 @@ object WSProtocol:
 
   enum Server:
     case Pong
+    case Nodes(nodes: Map[UUID, Seq[UUID]])
 
   object Server:
     given Codec[Server] = deriveCodec[Server]
