@@ -14,7 +14,7 @@ import java.util.UUID
 
 trait Node:
 
-  def add(ins: Data, f: Data => IO[Unit]): IO[Unit]
+  def add(data: Data, f: Data => IO[Unit]): IO[Unit]
 
   def data: IO[Seq[Data]]
 
@@ -39,9 +39,9 @@ object Node:
 
       def data: IO[Seq[Data]] = instruments.get.map(_.toSeq)
 
-      def add(ins: Data, f: Data => IO[Unit]): IO[Unit] =
+      def add(data: Data, f: Data => IO[Unit]): IO[Unit] =
         supervisor
-          .supervise(f(ins))
+          .supervise(f(data))
           .flatMap: fib =>
-            fibers.getAndSetKeyValue(ins.id, fib) <* instruments.update(_ + ins)
+            fibers.getAndSetKeyValue(data.id, fib) <* instruments.update(_ + data)
           .flatMap(_.foldMapM(_.cancel))
