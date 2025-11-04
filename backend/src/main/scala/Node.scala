@@ -14,7 +14,7 @@ import java.util.UUID
 
 trait Node:
 
-  def add(data: Data, f: Data => IO[Unit]): IO[Unit]
+  def add(data: Data): IO[Unit]
 
   def data: IO[Seq[Data]]
 
@@ -29,7 +29,7 @@ object Node:
         .ofSingleImmutableMap[IO, UUID, Fiber[IO, Throwable, Unit]]()
         .toResource
       _ <- fs2.Stream
-        .fixedRateStartImmediately[IO](3.seconds)
+        .fixedRate[IO](3.seconds)
         .evalMap: _ =>
           IO.println(s"Node $uuid is up and running")
         .compile
@@ -39,9 +39,12 @@ object Node:
 
       def data: IO[Seq[Data]] = instruments.get.map(_.toSeq)
 
-      def add(data: Data, f: Data => IO[Unit]): IO[Unit] =
-        supervisor
-          .supervise(f(data))
-          .flatMap: fib =>
-            fibers.getAndSetKeyValue(data.id, fib) <* instruments.update(_ + data)
-          .flatMap(_.foldMapM(_.cancel))
+      def add(data: Data): IO[Unit] =
+        IO.println(s"adding data $data") *>
+          supervisor
+            .supervise(fs2.Stream.fixedRate[IO](3.seconds).evalMap(_ =>
+              IO.println(s"$data")
+            ).compile.drain)
+            .flatMap: fib =>
+              fibers.getAndSetKeyValue(data.id, fib) <* instruments.update(_ + data)
+            .flatMap(_.foldMapM(_.cancel))

@@ -21,9 +21,11 @@ object Main extends IOApp.Simple:
                   outQ.offer(dtos.WSProtocol.Server.Pong)
                 case dtos.WSProtocol.Client.AddNode =>
                   engine.createNode
-                case dtos.WSProtocol.Client.AddInstrument =>
+                case dtos.WSProtocol.Client.AddData =>
                   IO.randomUUID.flatMap: insId =>
                     engine.addData(Data(insId))
+                case dtos.WSProtocol.Client.RemoveNode(nodeId) =>
+                  engine.removeNode(nodeId)
             .concurrently:
               engine
                 .nodes

@@ -40,16 +40,19 @@ object Engine:
             scores.get(data.id).foldMapM: sortedNodes =>
               sortedNodes.lastOption.foldMapM: nodeId =>
                 nodes.get(nodeId).foldMapM: node =>
-                  node.add(data, _ => IO.unit)
+                  node.add(data)
 
       def addData(data: Data): IO[Unit] =
         nodesRef.get.flatMap: nodes =>
           val scores = nodes.keys.toList
             .map(nodeId => nodeId -> hash.hash(s"${data.id}${nodeId}"))
             .sortBy(_(1))
-          nodeScoreByData
-            .update(_ + (data.id -> scores.map(_(0))))
-            .flatMap(_ => addImpl(data))
+          IO.raiseWhen(
+            scores.length == 0
+          )(throw new IllegalArgumentException(s"no nodes available")) *>
+            nodeScoreByData
+              .update(_ + (data.id -> scores.map(_(0))))
+              .flatMap(_ => addImpl(data))
 
       def createNode: IO[Unit] =
         IO.randomUUID.flatMap: nodeId =>

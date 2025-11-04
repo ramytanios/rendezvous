@@ -9,7 +9,8 @@ object WSProtocol:
   enum Client:
     case Ping
     case AddNode
-    case AddInstrument
+    case RemoveNode(id: UUID)
+    case AddData
 
   object Client:
     given Codec[Client] = deriveCodec[Client]
