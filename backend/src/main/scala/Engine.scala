@@ -24,6 +24,8 @@ trait Engine:
 
 object Engine:
 
+  case class NoNodesAvailable() extends RuntimeException("no nodes available")
+
   def apply(): Resource[IO, Engine] =
     for
       supervisor <- Supervisor[IO]
@@ -59,9 +61,7 @@ object Engine:
           val scores = nodes.keys.toList
             .map(nodeId => nodeId -> hash.hash(s"${data.id}${nodeId}"))
             .sortBy(_(1))
-          IO.raiseWhen(
-            scores.length == 0
-          )(throw new IllegalArgumentException(s"no nodes available")) *>
+          IO.raiseWhen(scores.length == 0)(throw new NoNodesAvailable) *>
             nodeScoreByData
               .update(_ + (data.id -> scores.map(_(0))))
               .flatMap(_ => addDataImpl(data))

@@ -20,6 +20,7 @@ object WSProtocol:
     case Pong
     case Nodes(nodes: Map[UUID, Seq[UUID]])
     case Update(nodeId: UUID, data: UUID)
+    case NoNodesAvailable
 
   object Server:
     given Codec[Server] = deriveCodec[Server]
