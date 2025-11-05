@@ -20,7 +20,7 @@ trait Node:
 
 object Node:
 
-  def apply(): Resource[IO, Node] =
+  def resource(): Resource[IO, Node] =
     for
       uuid <- IO.randomUUID.toResource
       supervisor <- Supervisor[IO]

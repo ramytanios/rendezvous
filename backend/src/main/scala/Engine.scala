@@ -34,7 +34,7 @@ object Engine:
 
       def nodes: Signal[IO, Map[UUID, Node]] = nodesRef
 
-      def addImpl(data: Data): IO[Unit] =
+      def addDataImpl(data: Data): IO[Unit] =
         nodesRef.get.flatMap: nodes =>
           nodeScoreByData.get.flatMap: scores =>
             scores.get(data.id).foldMapM: sortedNodes =>
@@ -52,14 +52,13 @@ object Engine:
           )(throw new IllegalArgumentException(s"no nodes available")) *>
             nodeScoreByData
               .update(_ + (data.id -> scores.map(_(0))))
-              .flatMap(_ => addImpl(data))
+              .flatMap(_ => addDataImpl(data))
 
       def createNode: IO[Unit] =
         IO.randomUUID.flatMap: nodeId =>
           supervisor.supervise:
-            fs2.Stream.resource(
-              Node().evalTap: node =>
-                nodesRef.update(_ + (nodeId -> node))
+            fs2.Stream.resource(Node.resource()).evalMap(node =>
+              nodesRef.update(_ + (nodeId -> node))
             ).compile.drain
           .flatMap: fib =>
             fibers.update(_ + (nodeId -> fib))
@@ -72,7 +71,7 @@ object Engine:
                 .evalSeq(node.data)
                 .parEvalMapUnbounded: data =>
                   nodeScoreByData.update(_.updatedWith(data.id)(_.map(_.dropRight(1))))
-                    .flatMap(_ => addImpl(data))
+                    .flatMap(_ => addDataImpl(data))
                 .compile
                 .drain
           .flatMap: _ =>
