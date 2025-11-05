@@ -57,9 +57,10 @@ object Engine:
       def createNode: IO[Unit] =
         IO.randomUUID.flatMap: nodeId =>
           supervisor.supervise:
-            fs2.Stream.resource(Node.resource()).evalMap(node =>
-              nodesRef.update(_ + (nodeId -> node))
-            ).compile.drain
+            Node.resource().use(node =>
+              nodesRef.update(_ + (nodeId -> node)) *>
+                IO.never.as(())
+            )
           .flatMap: fib =>
             fibers.update(_ + (nodeId -> fib))
 

@@ -40,14 +40,13 @@ object Node:
       def data: IO[Seq[Data]] = instruments.get.map(_.toSeq)
 
       def add(data: Data): IO[Unit] =
-        IO.println(s"adding data $data") *>
-          supervisor
-            .supervise:
-              fs2.Stream
-                .fixedRateStartImmediately[IO](3.seconds)
-                .evalMap(_ => IO.println(s"$data"))
-                .compile
-                .drain
-            .flatMap: fib =>
-              fibers.getAndSetKeyValue(data.id, fib) <* instruments.update(_ + data)
-            .flatMap(_.foldMapM(_.cancel))
+        supervisor
+          .supervise:
+            fs2.Stream
+              .fixedRateStartImmediately[IO](3.seconds)
+              .evalMap(_ => IO.println(s"$data"))
+              .compile
+              .drain
+          .flatMap: fib =>
+            fibers.getAndSetKeyValue(data.id, fib) <* instruments.update(_ + data)
+          .flatMap(_.foldMapM(_.cancel))
