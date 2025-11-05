@@ -26,7 +26,7 @@ object Main extends IOApp.Simple:
                   IO.randomUUID.flatMap: insId =>
                     engine.addData(Data(insId))
                   .handleErrorWith:
-                    case Engine.NoNodesAvailable() => 
+                    case Engine.NoNodesAvailable() =>
                       outQ.offer(dtos.WSProtocol.Server.NoNodesAvailable)
                 case dtos.WSProtocol.Client.RemoveNode(nodeId) =>
                   engine.removeNode(nodeId)

@@ -5,13 +5,13 @@ import cats.effect.kernel.Fiber
 import cats.effect.kernel.Ref
 import cats.effect.kernel.Resource
 import cats.effect.std.MapRef
+import cats.effect.std.Queue
 import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingMapRef
 
 import java.util.UUID
 import scala.concurrent.duration.*
-import cats.effect.std.Queue
 
 trait Node:
 
