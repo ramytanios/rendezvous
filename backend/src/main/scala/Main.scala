@@ -11,13 +11,6 @@ object Main extends IOApp.Simple:
 
   def receiveSend(engine: Engine): fs2.Pipe[IO, dtos.WSProtocol.Client, dtos.WSProtocol.Server] =
 
-    def getAll = engine.nodes.get.flatMap(
-      _.toList
-        .traverse: (uuid, node) =>
-          node.data.map(data => uuid -> data.map(_.id))
-        .map(_.toMap)
-    )
-
     (in: fs2.Stream[IO, dtos.WSProtocol.Client]) =>
       fs2.Stream
         .eval(Queue.unbounded[IO, dtos.WSProtocol.Server])
@@ -32,14 +25,11 @@ object Main extends IOApp.Simple:
                 case dtos.WSProtocol.Client.AddData =>
                   IO.randomUUID.flatMap: insId =>
                     engine.addData(Data(insId))
-                  .flatMap: _ =>
-                    getAll.flatMap(data => outQ.offer(dtos.WSProtocol.Server.Nodes(data)))
                 case dtos.WSProtocol.Client.RemoveNode(nodeId) =>
                   engine.removeNode(nodeId)
             .concurrently:
               engine
                 .nodes
-                .discrete
                 .evalMap:
                   _.toList
                     .traverse: (uuid, node) =>
@@ -47,6 +37,11 @@ object Main extends IOApp.Simple:
                     .map(_.toMap)
                     .flatMap: data =>
                       outQ.offer(dtos.WSProtocol.Server.Nodes(data))
+            .concurrently:
+              engine
+                .updates
+                .evalMap: (nodeId, data) =>
+                  outQ.offer(dtos.WSProtocol.Server.Update(nodeId, data.id))
 
   override def run: IO[Unit] =
     Engine().use: engine =>

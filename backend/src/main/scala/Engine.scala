@@ -6,20 +6,21 @@ import cats.effect.kernel.Ref
 import cats.effect.kernel.Resource
 import cats.effect.std.Supervisor
 import cats.syntax.all.*
-import fs2.concurrent.Signal
 import fs2.concurrent.SignallingRef
 
 import java.util.UUID
 
 trait Engine:
 
-  def nodes: Signal[IO, Map[UUID, Node]]
+  def nodes: fs2.Stream[IO, Map[UUID, Node]]
 
   def createNode: IO[Unit]
 
   def removeNode(nodeId: UUID): IO[Unit]
 
   def addData(data: Data): IO[Unit]
+
+  def updates: fs2.Stream[IO, (UUID, Data)]
 
 object Engine:
 
@@ -28,11 +29,22 @@ object Engine:
       supervisor <- Supervisor[IO]
       hash <- IO.unit.as(Hash.mmh3()).toResource
       nodesRef <- SignallingRef.of[IO, Map[UUID, Node]](Map.empty).toResource
-      nodeScoreByData <- Ref.of[IO, Map[UUID, List[UUID]]](Map.empty).toResource
+      nodeScoreByData <- SignallingRef.of[IO, Map[UUID, List[UUID]]](Map.empty).toResource
       fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
     yield new Engine:
 
-      def nodes: Signal[IO, Map[UUID, Node]] = nodesRef
+      def nodes: fs2.Stream[IO, Map[UUID, Node]] =
+        nodeScoreByData.discrete.switchMap: _ =>
+          nodesRef.discrete
+
+      def updates: fs2.Stream[IO, (UUID, Data)] =
+        nodesRef.discrete.switchMap:
+          fs2.Stream.emit(_)
+            .map(_.toList)
+            .flatMap(fs2.Stream.emits(_))
+            .map: (nodeId, node) =>
+              node.updates.tupleLeft(nodeId)
+            .parJoinUnbounded
 
       def addDataImpl(data: Data): IO[Unit] =
         nodesRef.get.flatMap: nodes =>
@@ -57,10 +69,9 @@ object Engine:
       def createNode: IO[Unit] =
         IO.randomUUID.flatMap: nodeId =>
           supervisor.supervise:
-            Node.resource().use(node =>
+            Node.resource().use: node =>
               nodesRef.update(_ + (nodeId -> node)) *>
                 IO.never.as(())
-            )
           .flatMap: fib =>
             fibers.update(_ + (nodeId -> fib))
 
