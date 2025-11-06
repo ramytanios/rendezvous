@@ -17,7 +17,7 @@ trait Node:
 
   def add(data: Data): IO[Unit]
 
-  def data: IO[Seq[Data]]
+  def snapshot: IO[Seq[Data]]
 
   def updates: fs2.Stream[IO, Data]
 
