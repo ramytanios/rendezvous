@@ -23,9 +23,8 @@ trait Node:
 
 object Node:
 
-  def resource(): Resource[IO, Node] =
+  def resource(id: UUID): Resource[IO, Node] =
     for
-      uuid <- IO.randomUUID.toResource
       supervisor <- Supervisor[IO]
       dataRef <- Ref.of[IO, Set[Data]](Set.empty).toResource
       updatesQ <- Queue.unbounded[IO, Data].toResource
@@ -35,7 +34,7 @@ object Node:
       _ <- fs2.Stream
         .fixedRateStartImmediately[IO](5.seconds)
         .evalMap: _ =>
-          IO.println(s"Node $uuid is up and running")
+          IO.println(s"Node $id is up and running")
         .compile
         .drain
         .background
