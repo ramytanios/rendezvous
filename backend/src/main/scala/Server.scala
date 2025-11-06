@@ -1,6 +1,6 @@
-package backend
+package rendezvous.backend
 
-import backend.Websocket
+import rendezvous.dtos
 import cats.effect.IO
 import cats.implicits.*
 import com.comcast.ip4s.Host

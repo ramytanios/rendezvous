@@ -1,4 +1,4 @@
-package dtos
+package rendezvous.dtos
 
 import io.circe.Codec
 import io.circe.generic.semiauto.*
@@ -18,7 +18,7 @@ object WSProtocol:
 
   enum Server:
     case Pong
-    case Nodes(nodes: Map[UUID, Seq[UUID]])
+    case Nodes(nodes: List[(UUID, Seq[UUID])])
     case Update(nodeId: UUID, data: UUID)
     case NoNodesAvailable
 

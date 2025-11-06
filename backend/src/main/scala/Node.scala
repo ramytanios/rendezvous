@@ -1,4 +1,4 @@
-package backend
+package rendezvous.backend
 
 import cats.effect.IO
 import cats.effect.kernel.Fiber

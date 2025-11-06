@@ -1,4 +1,4 @@
-package backend
+package rendezvous.backend
 
 import java.util.UUID
 

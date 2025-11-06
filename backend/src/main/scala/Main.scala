@@ -1,9 +1,10 @@
-package backend
+package rendezvous.backend
 
 import cats.effect.IO
 import cats.effect.IOApp
 import cats.effect.std.Queue
 import cats.syntax.all.*
+import rendezvous.dtos
 
 object Main extends IOApp.Simple:
 
@@ -39,7 +40,7 @@ object Main extends IOApp.Simple:
                       node.data.map(data => uuid -> data.map(_.id))
                     .map(_.toMap)
                     .flatMap: data =>
-                      outQ.offer(dtos.WSProtocol.Server.Nodes(data))
+                      outQ.offer(dtos.WSProtocol.Server.Nodes(data.toList))
             .concurrently:
               engine
                 .updates

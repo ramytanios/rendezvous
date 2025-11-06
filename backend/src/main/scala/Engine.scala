@@ -1,4 +1,4 @@
-package backend
+package rendezvous.backend
 
 import cats.effect.IO
 import cats.effect.kernel.Fiber
@@ -9,16 +9,17 @@ import cats.syntax.all.*
 import fs2.concurrent.SignallingRef
 
 import java.util.UUID
+import scala.collection.immutable.SortedMap
 
 trait Engine:
-
-  def nodes: fs2.Stream[IO, Map[UUID, Node]]
 
   def createNode: IO[Unit]
 
   def removeNode(nodeId: UUID): IO[Unit]
 
   def addData(data: Data): IO[Unit]
+
+  def nodes: fs2.Stream[IO, Map[UUID, Node]]
 
   def updates: fs2.Stream[IO, (UUID, Data)]
 
@@ -30,7 +31,7 @@ object Engine:
     for
       supervisor <- Supervisor[IO]
       hash <- IO.unit.as(Hash.mmh3()).toResource
-      nodesRef <- SignallingRef.of[IO, Map[UUID, Node]](Map.empty).toResource
+      nodesRef <- SignallingRef.of[IO, SortedMap[UUID, Node]](SortedMap.empty).toResource
       nodeScoreByData <- SignallingRef.of[IO, Map[UUID, List[UUID]]](Map.empty).toResource
       fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
     yield new Engine:

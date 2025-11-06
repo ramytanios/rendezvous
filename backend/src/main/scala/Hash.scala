@@ -1,4 +1,4 @@
-package backend
+package rendezvous.backend
 
 import scala.util.hashing.MurmurHash3
 
