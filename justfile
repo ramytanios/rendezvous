@@ -1,7 +1,7 @@
 # set dotenv-required := true
 # set dotenv-load := true
 
-project := "equity-quoting-engine"
+project := "rendezvous"
 port := env('BACKEND_PORT', '8090')
 
 alias run := run-backend
