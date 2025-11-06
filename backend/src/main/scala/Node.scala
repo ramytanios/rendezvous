@@ -41,7 +41,7 @@ object Node:
         .background
     yield new Node:
 
-      def data: IO[Seq[Data]] = dataRef.get.map(_.toSeq)
+      def snapshot: IO[Seq[Data]] = dataRef.get.map(_.toSeq)
 
       def updates: fs2.Stream[IO, Data] = fs2.Stream.fromQueueUnterminated(updatesQ)
 

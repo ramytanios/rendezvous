@@ -37,7 +37,7 @@ object Main extends IOApp.Simple:
                 .evalMap:
                   _.toList
                     .traverse: (uuid, node) =>
-                      node.data.map(data => uuid -> data.map(_.id))
+                      node.snapshot.map(data => uuid -> data.map(_.id))
                     .map(_.toMap)
                     .flatMap: data =>
                       outQ.offer(dtos.WSProtocol.Server.Nodes(data.toList))

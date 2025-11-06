@@ -81,7 +81,7 @@ object Engine:
           .flatMap: nodes =>
             nodes.get(nodeId).foldMapM: node =>
               fs2.Stream
-                .evalSeq(node.data)
+                .evalSeq(node.snapshot)
                 .parEvalMapUnbounded: data =>
                   nodeScoreByData.update(_.updatedWith(data.id)(_.map(_.dropRight(1))))
                     .flatMap(_ => addDataImpl(data))
