@@ -1,6 +1,5 @@
 package rendezvous.backend
 
-import rendezvous.dtos
 import cats.effect.IO
 import cats.implicits.*
 import com.comcast.ip4s.Host
@@ -12,6 +11,7 @@ import org.http4s.dsl.Http4sDsl
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Router
 import org.http4s.server.websocket.WebSocketBuilder2
+import rendezvous.dtos
 
 final class Server(
     host: String,

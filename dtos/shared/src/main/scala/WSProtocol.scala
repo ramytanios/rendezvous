@@ -24,4 +24,3 @@ object WSProtocol:
 
   object Server:
     given Codec[Server] = deriveCodec[Server]
-

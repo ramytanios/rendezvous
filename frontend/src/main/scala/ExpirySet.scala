@@ -31,11 +31,11 @@ trait ExpirySet[F[_], V]:
 object ExpirySet:
   def apply[F[_], V](using F: Temporal[F]): Resource[F, ExpirySet[F, V]] =
     for
-      _          <- Resource.pure[F, Unit](())
+      _ <- Resource.pure[F, Unit](())
       supervisor <- Supervisor[F]
-      cache      <- SignallingRef.of(Set.empty[V]).toResource
-      fibers     <- F.ref(Map.empty[V, Fiber[F, Throwable, Unit]]).toResource
-      mutex      <- Mutex[F].toResource
+      cache <- SignallingRef.of(Set.empty[V]).toResource
+      fibers <- F.ref(Map.empty[V, Fiber[F, Throwable, Unit]]).toResource
+      mutex <- Mutex[F].toResource
     yield new ExpirySet[F, V]:
 
       override def set(elem: V, expiresIn: FiniteDuration): F[Unit] =
