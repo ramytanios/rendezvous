@@ -40,7 +40,7 @@ trait View:
         ),
         div(
           cls := "grid grid-cols-3 gap-4",
-          state.nodes.toList.map: (nodeId, data) =>
+          state.nodes.map: (nodeId, data) =>
             div(
               cls := "relative",
               sl.Card(

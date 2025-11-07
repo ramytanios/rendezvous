@@ -36,12 +36,11 @@ object Main extends IOApp.Simple:
                   engine.removeNode(nodeId)
             .concurrently:
               engine
-                .nodes
+                .snapshot
                 .evalMap:
                   _.toList
                     .traverse: (uuid, node) =>
                       node.snapshot.map(data => uuid -> data.map(_.id))
-                    .map(_.toMap)
                     .flatMap: data =>
                       outQ.offer(dtos.WSProtocol.Server.Nodes(data))
             .concurrently:

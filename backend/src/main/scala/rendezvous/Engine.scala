@@ -12,7 +12,7 @@ import rendezvous.backend.rendezvous.Hash
 import rendezvous.backend.rendezvous.Node
 
 import java.util.UUID
-import scala.collection.immutable.SortedMap
+import scala.collection.immutable.ListMap
 
 trait Engine:
 
@@ -22,7 +22,7 @@ trait Engine:
 
   def addData(data: Data): IO[Unit]
 
-  def nodes: fs2.Stream[IO, Map[UUID, Node]]
+  def snapshot: fs2.Stream[IO, ListMap[UUID, Node]]
 
   def updates: fs2.Stream[IO, (UUID, Data)]
 
@@ -34,12 +34,13 @@ object Engine:
     for
       supervisor <- Supervisor[IO]
       hash <- IO.unit.as(Hash.mmh3()).toResource
-      nodesRef <- SignallingRef.of[IO, SortedMap[UUID, Node]](SortedMap.empty).toResource
+      nodesRef <- SignallingRef.of[IO, ListMap[UUID, Node]](ListMap.empty).toResource
       scoresRef <- SignallingRef.of[IO, Map[UUID, List[UUID]]](Map.empty).toResource
       fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
+      
     yield new Engine:
 
-      def nodes: fs2.Stream[IO, Map[UUID, Node]] =
+      def snapshot: fs2.Stream[IO, ListMap[UUID, Node]] =
         scoresRef.discrete.switchMap(_ => nodesRef.discrete)
 
       def updates: fs2.Stream[IO, (UUID, Data)] =
@@ -58,8 +59,8 @@ object Engine:
                   node.add(data)
 
       def redistributeData(): IO[Unit] =
-        fs2.Stream.evals(nodesRef.get)
-          .parEvalMapUnbounded: node =>
+        fs2.Stream.evalSeq(nodesRef.get.map(_.toSeq))
+          .parEvalMapUnbounded: (_, node) =>
             fs2.Stream
               .evalSeq(node.snapshot)
               .parEvalMapUnbounded(addDataImpl)
@@ -77,7 +78,7 @@ object Engine:
         newScoresOf(data.id)
           .flatTap: scores =>
             IO.raiseWhen(scores.length == 0)(throw new NoNodesAvailable)
-          .flatMap: scores =>
+          .flatMap: scores => // issue here no atomicity
             scoresRef.update(_ + (data.id -> scores))
           .flatMap(_ => addDataImpl(data))
 
