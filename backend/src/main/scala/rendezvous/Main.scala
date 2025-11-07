@@ -4,10 +4,10 @@ import cats.effect.IO
 import cats.effect.IOApp
 import cats.effect.std.Queue
 import cats.syntax.all.*
-import rendezvous.dtos
 import rendezvous.backend.rendezvous.Data
 import rendezvous.backend.rendezvous.Engine
 import rendezvous.backend.rendezvous.Server
+import rendezvous.dtos
 
 object Main extends IOApp.Simple:
 

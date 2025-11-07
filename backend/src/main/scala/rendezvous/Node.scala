@@ -9,10 +9,10 @@ import cats.effect.std.Queue
 import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingMapRef
+import rendezvous.backend.rendezvous.Data
 
 import java.util.UUID
 import scala.concurrent.duration.*
-import rendezvous.backend.rendezvous.Data
 
 trait Node:
 

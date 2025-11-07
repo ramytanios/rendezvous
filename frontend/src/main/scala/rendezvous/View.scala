@@ -2,6 +2,7 @@ package rendezvous.frontend
 
 import mouse.all.*
 import rendezvous.dtos
+
 import java.util.UUID
 
 trait View:

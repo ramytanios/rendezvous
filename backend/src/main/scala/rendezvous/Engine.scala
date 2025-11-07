@@ -7,12 +7,12 @@ import cats.effect.kernel.Resource
 import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingRef
+import rendezvous.backend.rendezvous.Data
+import rendezvous.backend.rendezvous.Hash
+import rendezvous.backend.rendezvous.Node
 
 import java.util.UUID
 import scala.collection.immutable.SortedMap
-import rendezvous.backend.rendezvous.Node
-import rendezvous.backend.rendezvous.Hash
-import rendezvous.backend.rendezvous.Data
 
 trait Engine:
 

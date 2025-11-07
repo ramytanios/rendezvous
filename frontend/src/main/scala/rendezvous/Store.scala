@@ -4,8 +4,9 @@ import cats.effect.*
 import cats.effect.implicits.*
 import cats.effect.std.Queue
 import cats.effect.std.Supervisor
-import rendezvous.dtos
 import monocle.syntax.all.*
+import rendezvous.dtos
+
 import scala.concurrent.duration.*
 
 object Store:
