@@ -13,6 +13,7 @@ import rendezvous.backend.rendezvous.Data
 
 import java.util.UUID
 import scala.concurrent.duration.*
+import scala.collection.immutable.ListSet
 
 trait Node:
 
@@ -27,7 +28,7 @@ object Node:
   def resource(id: UUID): Resource[IO, Node] =
     for
       supervisor <- Supervisor[IO]
-      dataRef <- Ref.of[IO, Set[Data]](Set.empty).toResource
+      dataRef <- Ref.of[IO, ListSet[Data]](ListSet.empty).toResource
       updatesQ <- Queue.unbounded[IO, Data].toResource
       fibers <- SignallingMapRef
         .ofSingleImmutableMap[IO, UUID, Fiber[IO, Throwable, Unit]]()

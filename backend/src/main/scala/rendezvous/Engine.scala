@@ -37,11 +37,11 @@ object Engine:
       nodesRef <- SignallingRef.of[IO, ListMap[UUID, Node]](ListMap.empty).toResource
       scoresRef <- SignallingRef.of[IO, Map[UUID, List[UUID]]](Map.empty).toResource
       fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
-      
+      updateSig <- SignallingRef.of[IO, Option[Data]](None).toResource
     yield new Engine:
 
       def snapshot: fs2.Stream[IO, ListMap[UUID, Node]] =
-        scoresRef.discrete.switchMap(_ => nodesRef.discrete)
+        updateSig.discrete.switchMap(_ => nodesRef.discrete)
 
       def updates: fs2.Stream[IO, (UUID, Data)] =
         nodesRef.discrete.switchMap: nodes =>
@@ -56,7 +56,7 @@ object Engine:
             scores.get(data.id).foldMapM: sortedNodes =>
               sortedNodes.lastOption.foldMapM: nodeId =>
                 nodes.get(nodeId).foldMapM: node =>
-                  node.add(data)
+                  node.add(data) *> updateSig.set(Some(data))
 
       def redistributeData(): IO[Unit] =
         fs2.Stream.evalSeq(nodesRef.get.map(_.toSeq))
