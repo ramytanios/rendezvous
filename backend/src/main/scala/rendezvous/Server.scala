@@ -1,4 +1,4 @@
-package rendezvous.backend
+package rendezvous.backend.rendezvous
 
 import cats.effect.IO
 import cats.implicits.*
@@ -12,6 +12,7 @@ import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Router
 import org.http4s.server.websocket.WebSocketBuilder2
 import rendezvous.dtos
+import rendezvous.backend.rendezvous.Websocket
 
 final class Server(
     host: String,

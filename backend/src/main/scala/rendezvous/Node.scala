@@ -1,4 +1,4 @@
-package rendezvous.backend
+package rendezvous.backend.rendezvous
 
 import cats.effect.IO
 import cats.effect.kernel.Fiber
@@ -12,6 +12,7 @@ import fs2.concurrent.SignallingMapRef
 
 import java.util.UUID
 import scala.concurrent.duration.*
+import rendezvous.backend.rendezvous.Data
 
 trait Node:
 

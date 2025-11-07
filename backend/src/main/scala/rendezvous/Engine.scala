@@ -1,4 +1,4 @@
-package rendezvous.backend
+package rendezvous.backend.rendezvous
 
 import cats.effect.IO
 import cats.effect.kernel.Fiber
@@ -10,6 +10,9 @@ import fs2.concurrent.SignallingRef
 
 import java.util.UUID
 import scala.collection.immutable.SortedMap
+import rendezvous.backend.rendezvous.Node
+import rendezvous.backend.rendezvous.Hash
+import rendezvous.backend.rendezvous.Data
 
 trait Engine:
 

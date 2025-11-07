@@ -1,3 +1,0 @@
-package frontend
-
-object Main

@@ -1,4 +1,4 @@
-package frontend
+package rendezvous.frontend
 
 import cats.effect.Resource
 import cats.effect.Temporal
