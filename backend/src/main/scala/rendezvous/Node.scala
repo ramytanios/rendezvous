@@ -18,7 +18,7 @@ trait Node:
 
   def add(data: Data): IO[Unit]
 
-  def snapshot: IO[Seq[Data]]
+  def snapshot: IO[List[Data]]
 
   def updates: fs2.Stream[IO, Data]
 
@@ -41,7 +41,7 @@ object Node:
         .background
     yield new Node:
 
-      def snapshot: IO[Seq[Data]] = dataRef.get.map(_.toSeq)
+      def snapshot: IO[List[Data]] = dataRef.get.map(_.toList)
 
       def updates: fs2.Stream[IO, Data] = fs2.Stream.fromQueueUnterminated(updatesQ)
 

@@ -18,7 +18,7 @@ object WSProtocol:
 
   enum Server:
     case Pong
-    case Nodes(nodes: List[(UUID, Seq[UUID])])
+    case Nodes(nodes: Map[UUID, List[UUID]])
     case Update(nodeId: UUID, data: UUID)
     case NoNodesAvailable
 

@@ -39,7 +39,7 @@ object ExpirySet:
     yield new ExpirySet[F, V]:
 
       override def set(elem: V, expiresIn: FiniteDuration): F[Unit] =
-        mutex.lock.use { _ =>
+        mutex.lock.use: _ =>
           cache.get.flatMap(c =>
             if c.contains(elem) then
               F.unit
@@ -54,29 +54,25 @@ object ExpirySet:
                 )
                 .flatMap(fib => fibers.update(_ + (elem -> fib)))
           )
-        }
 
       override def remove(elem: V): F[Unit] = mutex.lock.use { _ =>
         cache
           .update(_ - elem)
           .flatMap(_ => fibers.getAndUpdate(_ - elem))
-          .flatMap(c => c.get(elem).foldMapM(_.cancel))
+          .flatMap(_.get(elem).foldMapM(_.cancel))
       }
 
       override def resetExpiry(elem: V, expiresIn: FiniteDuration): F[Unit] =
-        mutex.lock.use { _ =>
-          cache.get.flatMap(c =>
-            if c.contains(elem) then F.unit // no-op
+        mutex.lock.use: _ =>
+          cache.get.flatMap: c =>
+            if c.contains(elem) then F.unit
             else
               fibers
                 .getAndUpdate(_ - elem)
                 .flatMap(_.get(elem).foldMapM(_.cancel))
-                .flatMap(_ =>
+                .flatMap: _ =>
                   supervisor.supervise(F.sleep(expiresIn) *> cache.update(_ - elem))
-                )
                 .flatMap(fib => fibers.update(_ + (elem -> fib)))
-          )
-        }
 
       override def snapshot: F[Set[V]] = cache.get
 

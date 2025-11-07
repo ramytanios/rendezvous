@@ -43,7 +43,7 @@ object Main extends IOApp.Simple:
                       node.snapshot.map(data => uuid -> data.map(_.id))
                     .map(_.toMap)
                     .flatMap: data =>
-                      outQ.offer(dtos.WSProtocol.Server.Nodes(data.toList))
+                      outQ.offer(dtos.WSProtocol.Server.Nodes(data))
             .concurrently:
               engine
                 .updates
