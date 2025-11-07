@@ -41,10 +41,8 @@ object Engine:
           nodesRef.discrete
 
       def updates: fs2.Stream[IO, (UUID, Data)] =
-        nodesRef.discrete.switchMap:
-          fs2.Stream.emit(_)
-            .map(_.toList)
-            .flatMap(fs2.Stream.emits(_))
+        nodesRef.discrete.switchMap: nodes =>
+          fs2.Stream.emits(nodes.toList)
             .map: (nodeId, node) =>
               node.updates.tupleLeft(nodeId)
             .parJoinUnbounded
@@ -57,7 +55,7 @@ object Engine:
                 nodes.get(nodeId).foldMapM: node =>
                   node.add(data)
 
-      def shuffleData(): IO[Unit] =
+      def redistributeData(): IO[Unit] =
         fs2.Stream.eval(nodesRef.get)
           .flatMap(nodes => fs2.Stream.emits(nodes.toList))
           .parEvalMapUnbounded: (_, node) =>
@@ -69,15 +67,18 @@ object Engine:
           .compile
           .drain
 
+      def newScoresOf(dataId: UUID): IO[List[UUID]] =
+        nodesRef.get.map: nodes =>
+          nodes.keys.toList
+            .sortBy(nodeId => hash.hash(s"$dataId${nodeId}"))
+
       def addData(data: Data): IO[Unit] =
-        nodesRef.get.flatMap: nodes =>
-          val scores = nodes.keys.toList
-            .map(nodeId => nodeId -> hash.hash(s"${data.id}${nodeId}"))
-            .sortBy(_(1)).map(_(0))
-          IO.raiseWhen(scores.length == 0)(throw new NoNodesAvailable) *>
-            scoresRef
-              .update(_ + (data.id -> scores))
-              .flatMap(_ => addDataImpl(data))
+        newScoresOf(data.id)
+          .flatTap: scores =>
+            IO.raiseWhen(scores.length == 0)(throw new NoNodesAvailable)
+          .flatMap: scores =>
+            scoresRef.update(_ + (data.id -> scores))
+          .flatMap(_ => addDataImpl(data))
 
       def createNode: IO[Unit] =
         IO.randomUUID.flatMap: nodeId =>
@@ -88,14 +89,17 @@ object Engine:
           .flatMap: fib =>
             fibers.update(_ + (nodeId -> fib))
           .flatMap: _ =>
-            scoresRef.update: scores =>
-              scores.map: (dataId, nodes) =>
-                dataId -> nodes.map(nodeId => nodeId -> hash.hash(s"$dataId$nodeId"))
-                  .sortBy(_(1)).map(_(0))
+            scoresRef.get
+              .flatMap: scores =>
+                scores.keys.toList.traverse: dataId =>
+                  newScoresOf(dataId).tupleLeft(dataId)
+                .map(_.toMap)
+              .flatMap: newScores =>
+                scoresRef.update(_ => newScores)
           .flatMap: _ =>
-            shuffleData()
+            redistributeData()
 
-      def removeNode(nodeId: UUID): IO[Unit] =
+      def redistributeDataOfNode(nodeId: UUID): IO[Unit] =
         nodesRef.get
           .flatMap: nodes =>
             nodes.get(nodeId).foldMapM: node =>
@@ -107,6 +111,9 @@ object Engine:
                     .flatMap(_ => addDataImpl(data))
                 .compile
                 .drain
+
+      def removeNode(nodeId: UUID): IO[Unit] =
+        redistributeDataOfNode(nodeId)
           .flatMap: _ =>
             nodesRef.update(_ - nodeId)
           .flatMap: _ =>
