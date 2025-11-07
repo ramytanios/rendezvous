@@ -37,8 +37,7 @@ object Engine:
     yield new Engine:
 
       def nodes: fs2.Stream[IO, Map[UUID, Node]] =
-        scoresRef.discrete.switchMap: _ =>
-          nodesRef.discrete
+        scoresRef.discrete.switchMap(_ => nodesRef.discrete)
 
       def updates: fs2.Stream[IO, (UUID, Data)] =
         nodesRef.discrete.switchMap: nodes =>
@@ -56,9 +55,8 @@ object Engine:
                   node.add(data)
 
       def redistributeData(): IO[Unit] =
-        fs2.Stream.eval(nodesRef.get)
-          .flatMap(nodes => fs2.Stream.emits(nodes.toList))
-          .parEvalMapUnbounded: (_, node) =>
+        fs2.Stream.evals(nodesRef.get)
+          .parEvalMapUnbounded: node =>
             fs2.Stream
               .evalSeq(node.snapshot)
               .parEvalMapUnbounded(addDataImpl)
