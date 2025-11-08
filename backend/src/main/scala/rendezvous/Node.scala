@@ -1,4 +1,4 @@
-package rendezvous.backend.rendezvous
+package rendezvous.backend
 
 import cats.effect.IO
 import cats.effect.kernel.Fiber
@@ -9,11 +9,10 @@ import cats.effect.std.Queue
 import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingMapRef
-import rendezvous.backend.rendezvous.Data
 
 import java.util.UUID
-import scala.concurrent.duration.*
 import scala.collection.immutable.ListSet
+import scala.concurrent.duration.*
 
 trait Node:
 

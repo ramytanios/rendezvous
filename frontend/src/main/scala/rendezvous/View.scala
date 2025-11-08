@@ -12,8 +12,7 @@ trait View:
   import html.*
   import ff4s.shoelace as sl
 
-  def truncateUUID(uuid: UUID): String =
-    uuid.toString.split("-").head
+  def truncateUUID(uuid: UUID): String = uuid.toString.split("-").head
 
   val view =
     useState: state =>
