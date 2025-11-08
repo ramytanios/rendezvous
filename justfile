@@ -1,6 +1,3 @@
-# set dotenv-required := true
-# set dotenv-load := true
-
 project := "rendezvous"
 port := env('BACKEND_PORT', '8090')
 
@@ -47,7 +44,6 @@ stage:
 run-staged:
     echo {{ MAGENTA }}$PWD{{ NORMAL }}
     sh ./target/universal/stage/bin/{{ project }}-backend
-    # direnv exec . ./target/universal/stage/bin/{{ project }}-backend
 
 [unix]
 run-backend:
@@ -78,3 +74,9 @@ watch-backend:
 serve-frontend:
     echo {{ MAGENTA }}$PWD{{ NORMAL }}
     live-server --entry-file=index.html --proxy=/api:http://localhost:{{ port }}/api
+
+[unix]
+[working-directory('frontend')]
+watch-css:
+    echo {{ MAGENTA }}$PWD{{ NORMAL }}
+    npx @tailwindcss/cli -i ./input.css -o ./output.css --watch
