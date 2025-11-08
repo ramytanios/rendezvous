@@ -13,6 +13,7 @@ import rendezvous.backend.rendezvous.Node
 
 import java.util.UUID
 import scala.collection.immutable.ListMap
+import scala.collection.mutable.ArrayBuffer
 
 trait Engine:
 
@@ -30,12 +31,33 @@ object Engine:
 
   case class NoNodesAvailable() extends RuntimeException("no nodes available")
 
+  class Rank(dataId: UUID, hash: Hash, initNodes: List[UUID]):
+
+    private val rank: ArrayBuffer[UUID] = ArrayBuffer.from(initNodes).sortBy(_hash)
+
+    private def _hash(nodeId: UUID): Int = hash.hash(s"$dataId${nodeId}")
+
+    def bestNode: Option[UUID] = rank.lastOption
+
+    def secondBestNode: Option[UUID] = Option.when(rank.size >= 2)(rank(rank.size - 2))
+
+    def addNode(nodeId: UUID): Rank =
+      rank += nodeId
+      rank.sortInPlaceBy(_hash)
+      this
+
+    def removeNode(nodeId: UUID): Rank =
+      rank.filterInPlace(_ != nodeId)
+      this
+
+    def scores: List[UUID] = rank.toList
+
   def apply(): Resource[IO, Engine] =
     for
       supervisor <- Supervisor[IO]
       hash <- IO.unit.as(Hash.mmh3()).toResource
       nodesRef <- SignallingRef.of[IO, ListMap[UUID, Node]](ListMap.empty).toResource
-      scoresRef <- SignallingRef.of[IO, Map[UUID, List[UUID]]](Map.empty).toResource
+      scoresRef <- SignallingRef.of[IO, Map[UUID, Rank]](Map.empty).toResource
       fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
       updateSig <- SignallingRef.of[IO, Option[Data]](None).toResource
     yield new Engine:
@@ -50,37 +72,20 @@ object Engine:
               node.updates.tupleLeft(nodeId)
             .parJoinUnbounded
 
-      def addDataImpl(data: Data): IO[Unit] =
-        nodesRef.get.flatMap: nodes =>
-          scoresRef.get.flatMap: scores =>
-            scores.get(data.id).foldMapM: sortedNodes =>
-              sortedNodes.lastOption.foldMapM: nodeId =>
-                nodes.get(nodeId).foldMapM: node =>
-                  node.add(data) *> updateSig.set(Some(data))
-
-      def redistributeData(): IO[Unit] =
-        fs2.Stream.evalSeq(nodesRef.get.map(_.toSeq))
-          .parEvalMapUnbounded: (_, node) =>
-            fs2.Stream
-              .evalSeq(node.snapshot)
-              .parEvalMapUnbounded(addDataImpl)
-              .compile
-              .drain
-          .compile
-          .drain
-
-      def newScoresOf(dataId: UUID): IO[List[UUID]] =
-        nodesRef.get.map: nodes =>
-          nodes.keys.toList
-            .sortBy(nodeId => hash.hash(s"$dataId${nodeId}"))
-
       def addData(data: Data): IO[Unit] =
-        newScoresOf(data.id)
-          .flatTap: scores =>
-            IO.raiseWhen(scores.length == 0)(throw new NoNodesAvailable)
-          .flatMap: scores =>
-            scoresRef.update(_ + (data.id -> scores))
-          .flatMap(_ => addDataImpl(data))
+        nodesRef.get.map(_.keysIterator.toList)
+          .flatTap: currNodes =>
+            IO.raiseWhen(currNodes.length == 0)(throw new NoNodesAvailable)
+          .flatMap: currNodes =>
+            val rank = new Rank(data.id, hash, currNodes)
+            scoresRef.update(_ + (data.id -> rank)) *> IO.pure(rank)
+          .flatMap: rank =>
+            rank.bestNode.foldMapM: node =>
+              nodeWithId(node).flatMap(_.foldMapM(_.add(data)))
+          .flatMap: _ =>
+            updateSig.set(Some(data))
+
+      def nodeWithId(id: UUID): IO[Option[Node]] = nodesRef.get.map(_.get(id))
 
       def createNode: IO[Unit] =
         IO.randomUUID.flatMap: nodeId =>
@@ -91,36 +96,44 @@ object Engine:
           .flatMap: fib =>
             fibers.update(_ + (nodeId -> fib))
           .flatMap: _ =>
-            scoresRef.get
-              .flatMap: scores =>
-                scores.keys.toList.traverse: dataId =>
-                  newScoresOf(dataId).tupleLeft(dataId)
-                .map(_.toMap)
-              .flatMap: newScores =>
-                scoresRef.update(_ => newScores)
-          .flatMap: _ =>
-            redistributeData()
-
-      def redistributeDataOfNode(nodeId: UUID): IO[Unit] =
-        nodesRef.get
-          .flatMap: nodes =>
-            nodes.get(nodeId).foldMapM: node =>
-              fs2.Stream
-                .evalSeq(node.snapshot)
-                .parEvalMapUnbounded: data =>
-                  scoresRef.get.map(_.get(data.id)) *>
-                    scoresRef
-                      .update(_.updatedWith(data.id)(_.map(_.dropRight(1))))
-                      .flatMap(_ => node.remove(data))
-                      .flatMap(_ => addDataImpl(data)) *> scoresRef.get.map(_.get(data.id))
-                .compile
-                .drain
+            scoresRef.get.flatMap:
+              _.toList.traverse: (dataId, rank) =>
+                IO(rank.addNode(nodeId))
+                  .flatTap: _ =>
+                    scoresRef.update(_ + (dataId -> rank))
+                  .flatTap: newRank =>
+                    newRank.secondBestNode.foldMapM: node =>
+                      nodeWithId(node).flatMap(_.foldMapM(_.remove(Data(dataId))))
+                  .flatMap: newRank =>
+                    newRank.bestNode.foldMapM: node =>
+                      nodeWithId(node).flatMap(_.foldMapM(_.add(Data(dataId))))
+                  .flatMap: _ =>
+                    updateSig.set(Some(Data(dataId)))
+              .void
 
       def removeNode(nodeId: UUID): IO[Unit] =
-        redistributeDataOfNode(nodeId)
-          .flatMap: _ =>
-            nodesRef.update(_ - nodeId)
-          .flatMap: _ =>
-            fibers.get.flatMap(_.get(nodeId).foldMapM(_.cancel))
-          .flatMap: _ =>
-            IO.println(s"Node $nodeId is removed")
+        scoresRef.get.flatMap:
+          _.toList.traverse: (dataId, rank) =>
+            IO(rank.removeNode(nodeId))
+              .flatMap: rank =>
+                if rank.scores.isEmpty then
+                  scoresRef.update(_ - dataId)
+                else
+                  scoresRef.update(_ + (dataId -> rank))
+          .void
+        .flatMap: _ =>
+          nodeWithId(nodeId).flatMap:
+            _.foldMapM: node =>
+              fs2.Stream.evalSeq(node.snapshot)
+                .parEvalMapUnbounded: data =>
+                  scoresRef.get.flatMap(_.get(data.id).foldMapM: rank =>
+                    rank.bestNode.foldMapM: node =>
+                      nodeWithId(node).flatMap(_.foldMapM(_.add(data))))
+                .compile
+                .drain
+        .flatMap: _ =>
+          nodesRef.update(_ - nodeId)
+        .flatMap: _ =>
+          fibers.get.flatMap(_.get(nodeId).foldMapM(_.cancel))
+        .flatMap: _ =>
+          IO.println(s"Node $nodeId is removed")
