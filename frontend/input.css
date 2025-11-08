@@ -16,7 +16,7 @@ sl-card::part(header) {
 }
 
 sl-card::part(body) {
-  background-color: #d1d5db;
+  background-color: #e5e7eb;
   max-height: 200px;
   height: 100%;
   overflow-y: auto;

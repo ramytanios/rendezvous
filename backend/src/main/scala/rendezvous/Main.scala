@@ -36,7 +36,7 @@ object Main extends IOApp.Simple:
                   engine.removeNode(nodeId)
             .concurrently:
               engine
-                .snapshot
+                .stream
                 .evalMap:
                   _.toList
                     .traverse: (uuid, node) =>

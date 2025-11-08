@@ -22,7 +22,7 @@ trait Engine:
 
   def addData(data: Data): IO[Unit]
 
-  def snapshot: fs2.Stream[IO, ListMap[UUID, Node]]
+  def stream: fs2.Stream[IO, ListMap[UUID, Node]]
 
   def updates: fs2.Stream[IO, (UUID, Data)]
 
@@ -40,7 +40,7 @@ object Engine:
       updateSig <- SignallingRef.of[IO, Option[Data]](None).toResource
     yield new Engine:
 
-      def snapshot: fs2.Stream[IO, ListMap[UUID, Node]] =
+      def stream: fs2.Stream[IO, ListMap[UUID, Node]] =
         updateSig.discrete.switchMap(_ => nodesRef.discrete)
 
       def updates: fs2.Stream[IO, (UUID, Data)] =
@@ -78,7 +78,7 @@ object Engine:
         newScoresOf(data.id)
           .flatTap: scores =>
             IO.raiseWhen(scores.length == 0)(throw new NoNodesAvailable)
-          .flatMap: scores => // issue here no atomicity
+          .flatMap: scores =>
             scoresRef.update(_ + (data.id -> scores))
           .flatMap(_ => addDataImpl(data))
 
@@ -108,9 +108,11 @@ object Engine:
               fs2.Stream
                 .evalSeq(node.snapshot)
                 .parEvalMapUnbounded: data =>
-                  scoresRef
-                    .update(_.updatedWith(data.id)(_.map(_.dropRight(1))))
-                    .flatMap(_ => addDataImpl(data))
+                  scoresRef.get.map(_.get(data.id)) *>
+                    scoresRef
+                      .update(_.updatedWith(data.id)(_.map(_.dropRight(1))))
+                      .flatMap(_ => node.remove(data))
+                      .flatMap(_ => addDataImpl(data)) *> scoresRef.get.map(_.get(data.id))
                 .compile
                 .drain
 
