@@ -10,6 +10,7 @@ import fs2.concurrent.SignallingRef
 
 import java.util.UUID
 import scala.collection.immutable.ListMap
+import cats.effect.kernel.Deferred
 
 trait Engine:
 
@@ -63,28 +64,30 @@ object Engine:
 
       def nodeWithId(id: UUID): IO[Option[Node]] = nodesRef.get.map(_.get(id))
 
-      // ISSUE: this does not guarantee a correct nodesRef result at the end
       def createNode: IO[UUID] =
         IO.randomUUID.flatTap: nodeId =>
-          supervisor.supervise:
-            Node.resource(nodeId).use: node =>
-              nodesRef.update(_ + (nodeId -> node)) *>
-                IO.never.as(())
-          .flatMap: fib =>
-            fibers.update(_ + (nodeId -> fib))
-          .flatMap: _ =>
-            scoresRef.get.flatMap:
-              _.toList.traverse: (dataId, scores) =>
-                IO(scores.addNode(nodeId))
-                  .flatTap: _ =>
-                    scoresRef.update(_ + (dataId -> scores))
-                  .flatTap: newScores =>
-                    newScores.secondBestNode.foldMapM: node =>
-                      nodeWithId(node).flatMap(_.foldMapM(_.remove(Data(dataId))))
-                  .flatMap: newScores =>
-                    newScores.bestNode.foldMapM: node =>
-                      nodeWithId(node).flatMap(_.foldMapM(_.add(Data(dataId))))
-              .void
+          Deferred[IO, UUID].flatMap: cacheUpdated =>
+            supervisor.supervise:
+              Node.resource(nodeId).use: node =>
+                nodesRef.update(_ + (nodeId -> node)).flatMap: _ =>
+                  cacheUpdated.complete(nodeId).flatMap: _ =>
+                    IO.never.as(())
+            .flatMap: fib =>
+              fibers.update(_ + (nodeId -> fib))
+            .flatMap: _ =>
+              cacheUpdated.get.flatMap: _ =>
+                scoresRef.get.flatMap:
+                  _.toList.traverse: (dataId, scores) =>
+                    IO(scores.addNode(nodeId))
+                      .flatTap: _ =>
+                        scoresRef.update(_ + (dataId -> scores))
+                      .flatTap: newScores =>
+                        newScores.secondBestNode.foldMapM: node =>
+                          nodeWithId(node).flatMap(_.foldMapM(_.remove(Data(dataId))))
+                      .flatMap: newScores =>
+                        newScores.bestNode.foldMapM: node =>
+                          nodeWithId(node).flatMap(_.foldMapM(_.add(Data(dataId))))
+                  .void
 
       def removeNode(nodeId: UUID): IO[Unit] =
         scoresRef.get.flatMap:
