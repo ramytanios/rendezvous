@@ -23,6 +23,7 @@ lazy val V = new {
   val logback = "1.5.7"
   val http4s = "0.23.27"
   val test = "0.7.29"
+  val munit = "2.0.0-M3"
   val `cats-effect` = "3.5.4"
   val `cats-time` = "0.5.1"
   val `scala-java-time` = "2.5.0"
@@ -94,7 +95,8 @@ lazy val backend = project
         "org.apache.commons" % "commons-math3" % V.`commons-math`,
         "org.http4s" %% "http4s-dsl" % V.http4s,
         "org.http4s" %% "http4s-circe" % V.http4s,
-        "org.http4s" %% "http4s-ember-server" % V.http4s
+        "org.http4s" %% "http4s-ember-server" % V.http4s,
+        "org.typelevel" %% "munit-cats-effect" %V.munit  % Test
       ),
     scalacOptions -= "-Xfatal-warnings"
   )

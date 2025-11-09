@@ -19,6 +19,8 @@ trait Engine:
 
   def addData(data: Data): IO[Unit]
 
+  def snapshot: IO[ListMap[UUID, Node]]
+
   def stream: fs2.Stream[IO, ListMap[UUID, Node]]
 
   def updates: fs2.Stream[IO, (UUID, Data)]
@@ -35,6 +37,8 @@ object Engine:
       scoresRef <- SignallingRef.of[IO, Map[UUID, Scores]](Map.empty).toResource
       fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
     yield new Engine:
+
+      def snapshot: IO[ListMap[UUID, Node]] = nodesRef.get
 
       def stream: fs2.Stream[IO, ListMap[UUID, Node]] =
         nodesRef.discrete.merge(fs2.Stream.repeatEval(nodesRef.get))
