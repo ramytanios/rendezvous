@@ -38,8 +38,9 @@ object Main extends IOApp.Simple:
                   _.toList
                     .traverse: (uuid, node) =>
                       node.snapshot.map(data => uuid -> data.map(_.id))
-                    .flatMap: data =>
-                      outQ.offer(dtos.WSProtocol.Server.Nodes(data))
+                .changes
+                .evalMap: data =>
+                  outQ.offer(dtos.WSProtocol.Server.Nodes(data))
             .concurrently:
               engine
                 .updates

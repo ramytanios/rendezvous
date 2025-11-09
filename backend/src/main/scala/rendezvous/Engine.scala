@@ -7,7 +7,7 @@ import cats.effect.kernel.Resource
 import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingRef
-
+import scala.concurrent.duration.*
 import java.util.UUID
 import scala.collection.immutable.ListMap
 
@@ -34,13 +34,11 @@ object Engine:
       nodesRef <- SignallingRef.of[IO, ListMap[UUID, Node]](ListMap.empty).toResource
       scoresRef <- SignallingRef.of[IO, Map[UUID, Scores]](Map.empty).toResource
       fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
-      updateSig <- SignallingRef.of[IO, Option[Data]](None).toResource
     yield new Engine:
 
       def stream: fs2.Stream[IO, ListMap[UUID, Node]] =
-        updateSig.discrete.switchMap(_ => nodesRef.discrete)
+        nodesRef.discrete.merge(fs2.Stream.repeatEval(nodesRef.get))
 
-      // replace with `updateSig`
       def updates: fs2.Stream[IO, (UUID, Data)] =
         nodesRef.discrete.switchMap: nodes =>
           fs2.Stream.emits(nodes.toList)
@@ -58,8 +56,6 @@ object Engine:
           .flatMap: scores =>
             scores.bestNode.foldMapM: node =>
               nodeWithId(node).flatMap(_.foldMapM(_.add(data)))
-          .flatMap: _ =>
-            updateSig.set(Some(data))
 
       def nodeWithId(id: UUID): IO[Option[Node]] = nodesRef.get.map(_.get(id))
 
@@ -73,18 +69,17 @@ object Engine:
             fibers.update(_ + (nodeId -> fib))
           .flatMap: _ =>
             scoresRef.get.flatMap:
-              _.toList.traverse: (dataId, scores) =>
-                IO(scores.addNode(nodeId))
-                  .flatTap: _ =>
-                    scoresRef.update(_ + (dataId -> scores))
-                  .flatTap: newScores =>
-                    newScores.secondBestNode.foldMapM: node =>
-                      nodeWithId(node).flatMap(_.foldMapM(_.remove(Data(dataId))))
-                  .flatMap: newScores =>
-                    newScores.bestNode.foldMapM: node =>
-                      nodeWithId(node).flatMap(_.foldMapM(_.add(Data(dataId))))
-                  .flatMap: _ =>
-                    updateSig.set(Some(Data(dataId)))
+              _.toList.traverse:
+                (dataId, scores) =>
+                  IO(scores.addNode(nodeId))
+                    .flatTap: _ =>
+                      scoresRef.update(_ + (dataId -> scores))
+                    .flatTap: newScores =>
+                      newScores.secondBestNode.foldMapM: node =>
+                        nodeWithId(node).flatMap(_.foldMapM(_.remove(Data(dataId))))
+                    .flatMap: newScores =>
+                      newScores.bestNode.foldMapM: node =>
+                        nodeWithId(node).flatMap(_.foldMapM(_.add(Data(dataId))))
               .void
 
       def removeNode(nodeId: UUID): IO[Unit] =
