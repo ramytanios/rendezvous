@@ -7,13 +7,13 @@ import cats.effect.kernel.Resource
 import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingRef
-import scala.concurrent.duration.*
+
 import java.util.UUID
 import scala.collection.immutable.ListMap
 
 trait Engine:
 
-  def createNode: IO[Unit]
+  def createNode: IO[UUID]
 
   def removeNode(nodeId: UUID): IO[Unit]
 
@@ -59,8 +59,8 @@ object Engine:
 
       def nodeWithId(id: UUID): IO[Option[Node]] = nodesRef.get.map(_.get(id))
 
-      def createNode: IO[Unit] =
-        IO.randomUUID.flatMap: nodeId =>
+      def createNode: IO[UUID] =
+        IO.randomUUID.flatTap: nodeId =>
           supervisor.supervise:
             Node.resource(nodeId).use: node =>
               nodesRef.update(_ + (nodeId -> node)) *>
@@ -69,17 +69,16 @@ object Engine:
             fibers.update(_ + (nodeId -> fib))
           .flatMap: _ =>
             scoresRef.get.flatMap:
-              _.toList.traverse:
-                (dataId, scores) =>
-                  IO(scores.addNode(nodeId))
-                    .flatTap: _ =>
-                      scoresRef.update(_ + (dataId -> scores))
-                    .flatTap: newScores =>
-                      newScores.secondBestNode.foldMapM: node =>
-                        nodeWithId(node).flatMap(_.foldMapM(_.remove(Data(dataId))))
-                    .flatMap: newScores =>
-                      newScores.bestNode.foldMapM: node =>
-                        nodeWithId(node).flatMap(_.foldMapM(_.add(Data(dataId))))
+              _.toList.traverse: (dataId, scores) =>
+                IO(scores.addNode(nodeId))
+                  .flatTap: _ =>
+                    scoresRef.update(_ + (dataId -> scores))
+                  .flatTap: newScores =>
+                    newScores.secondBestNode.foldMapM: node =>
+                      nodeWithId(node).flatMap(_.foldMapM(_.remove(Data(dataId))))
+                  .flatMap: newScores =>
+                    newScores.bestNode.foldMapM: node =>
+                      nodeWithId(node).flatMap(_.foldMapM(_.add(Data(dataId))))
               .void
 
       def removeNode(nodeId: UUID): IO[Unit] =

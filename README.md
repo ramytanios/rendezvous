@@ -5,5 +5,6 @@ An implementation of the [Rendezvous Hashing](https://en.wikipedia.org/wiki/Rend
 ![](hashing.gif)
 
 TODO: 
-    1. Add screenshots of GUI
-    2. Efficient hash multiplication 
+    1. Efficient hash multiplication 
+    2. Weighted approach
+    3. Add test

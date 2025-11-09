@@ -22,15 +22,19 @@ object Main extends IOApp.Simple:
                 case dtos.WSProtocol.Client.Ping =>
                   outQ.offer(dtos.WSProtocol.Server.Pong)
                 case dtos.WSProtocol.Client.AddNode =>
-                  engine.createNode
+                  engine.createNode.flatMap: nodeId =>
+                    outQ.offer(dtos.WSProtocol.Server.NodeAdded(nodeId))
                 case dtos.WSProtocol.Client.AddData =>
-                  IO.randomUUID.flatMap: insId =>
-                    engine.addData(Data(insId))
+                  IO.randomUUID.flatTap: dataId =>
+                    engine.addData(Data(dataId))
+                  .flatMap: dataId =>
+                    outQ.offer(dtos.WSProtocol.Server.DataAdded(dataId))
                   .handleErrorWith:
                     case Engine.NoNodesAvailable() =>
                       outQ.offer(dtos.WSProtocol.Server.NoNodesAvailable)
                 case dtos.WSProtocol.Client.RemoveNode(nodeId) =>
-                  engine.removeNode(nodeId)
+                  engine.removeNode(nodeId) *>
+                    outQ.offer(dtos.WSProtocol.Server.NodeRemoved(nodeId))
             .concurrently:
               engine
                 .stream

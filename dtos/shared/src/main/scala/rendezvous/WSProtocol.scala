@@ -20,6 +20,9 @@ object WSProtocol:
     case Pong
     case Nodes(nodes: List[(UUID, List[UUID])])
     case Update(nodeId: UUID, data: UUID)
+    case NodeAdded(nodeId: UUID)
+    case DataAdded(dataId: UUID)
+    case NodeRemoved(nodeId: UUID)
     case NoNodesAvailable
 
   object Server:

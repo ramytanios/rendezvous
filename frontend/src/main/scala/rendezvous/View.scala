@@ -18,6 +18,7 @@ trait View:
     useState: state =>
       div(
         cls := "bg-zinc-100 font-mono w-screen h-screen flex flex-col gap-4 items-center justify-center overflow-y-auto",
+        div(span(cls := "uppercase", "Rendezvous Hashing 🚀")),
         div(
           cls := "flex gap-2",
           sl.Button(
@@ -74,5 +75,34 @@ trait View:
                 )
               )
             )
+        ),
+        div(
+          cls := "fixed top-5 right-5 z-50",
+          state.notifs.map(_(1)).reverse.map {
+            case Notification.Success(label, msg) =>
+              sl.Alert(
+                sl.Alert.closable := true,
+                sl.Alert.open := true,
+                sl.Alert.variant := "success",
+                sl.Alert.slots.icon := sl.Icon(sl.Icon.name := "check2-circle"),
+                div(strong(label), br(), span(msg))
+              )
+            case Notification.Error(label, msg) =>
+              sl.Alert(
+                sl.Alert.closable := true,
+                sl.Alert.open := true,
+                sl.Alert.variant := "danger",
+                sl.Alert.slots.icon := sl.Icon(sl.Icon.name := "exclamation-octagon"),
+                div(strong(label), br(), span(msg))
+              )
+            case Notification.Warning(label, msg) =>
+              sl.Alert(
+                sl.Alert.closable := true,
+                sl.Alert.open := true,
+                sl.Alert.variant := "warning",
+                sl.Alert.slots.icon := sl.Icon(sl.Icon.name := "exclamation-triangle"),
+                div(strong(label), br(), span(msg))
+              )
+          }
         )
       )

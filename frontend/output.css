@@ -176,6 +176,9 @@
   .absolute {
     position: absolute;
   }
+  .fixed {
+    position: fixed;
+  }
   .relative {
     position: relative;
   }
@@ -185,11 +188,20 @@
   .top-0 {
     top: calc(var(--spacing) * 0);
   }
+  .top-5 {
+    top: calc(var(--spacing) * 5);
+  }
   .right-0\.5 {
     right: calc(var(--spacing) * 0.5);
   }
+  .right-5 {
+    right: calc(var(--spacing) * 5);
+  }
   .-left-3 {
     left: calc(var(--spacing) * -3);
+  }
+  .z-50 {
+    z-index: 50;
   }
   .-mt-1 {
     margin-top: calc(var(--spacing) * -1);
