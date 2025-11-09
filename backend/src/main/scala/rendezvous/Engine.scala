@@ -63,6 +63,7 @@ object Engine:
 
       def nodeWithId(id: UUID): IO[Option[Node]] = nodesRef.get.map(_.get(id))
 
+      // ISSUE: this does not guarantee a correct nodesRef result at the end
       def createNode: IO[UUID] =
         IO.randomUUID.flatTap: nodeId =>
           supervisor.supervise:
