@@ -52,5 +52,5 @@ object Main extends IOApp.Simple:
                   outQ.offer(dtos.WSProtocol.Server.Update(nodeId, data.id))
 
   override def run: IO[Unit] =
-    Engine().use: engine =>
+    Engine.resource().use: engine =>
       new Server("127.0.0.1", 8090, receiveSend(engine)).run

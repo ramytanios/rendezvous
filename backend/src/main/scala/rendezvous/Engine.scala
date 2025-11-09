@@ -27,7 +27,7 @@ object Engine:
 
   case class NoNodesAvailable() extends RuntimeException("no nodes available")
 
-  def apply(): Resource[IO, Engine] =
+  def resource(): Resource[IO, Engine] =
     for
       supervisor <- Supervisor[IO]
       hash <- IO.unit.as(Hash.mmh3()).toResource
