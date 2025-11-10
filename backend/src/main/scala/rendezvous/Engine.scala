@@ -66,16 +66,16 @@ object Engine:
 
       def createNode: IO[UUID] =
         IO.randomUUID.flatTap: nodeId =>
-          Deferred[IO, UUID].flatMap: cacheUpdated =>
+          Deferred[IO, Node].flatMap: nodeAllocated =>
             supervisor.supervise:
               Node.resource(nodeId).use: node =>
-                nodesRef.update(_ + (nodeId -> node)).flatMap: _ =>
-                  cacheUpdated.complete(nodeId).flatMap: _ =>
-                    IO.never.as(())
+                nodeAllocated.complete(node) *> IO.never.as(())
             .flatMap: fib =>
               fibers.update(_ + (nodeId -> fib))
             .flatMap: _ =>
-              cacheUpdated.get.flatMap: _ =>
+              nodeAllocated.get.flatMap: node =>
+                nodesRef.update(_ + (nodeId -> node))
+            .flatMap: _ =>
                 scoresRef.get.flatMap:
                   _.toList.traverse: (dataId, scores) =>
                     IO(scores.addNode(nodeId))
