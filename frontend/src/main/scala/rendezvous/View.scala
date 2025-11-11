@@ -1,5 +1,6 @@
 package rendezvous.frontend
 
+import cats.syntax.all.*
 import mouse.all.*
 import rendezvous.dtos
 
@@ -26,7 +27,7 @@ trait View:
             sl.Button.size := "medium",
             sl.Button.outline := true,
             sl.Button.slots.prefix := sl.Icon(sl.Icon.name := "hdd-rack"),
-            onClick := (_ => Some(Action.SendWS(dtos.WSProtocol.Client.AddNode))),
+            onClick := (_ => Some(Action.AddNode)),
             p(cls := "uppercase", "Add Node")
           ),
           sl.Button(
@@ -44,11 +45,15 @@ trait View:
             div(
               cls := "relative h-48",
               sl.Card(
-                cls := "h-full",
+                cls := "relative h-full",
                 sl.Card.slots.header := div(
                   cls := "text-base flex justify-between items-center gap-x-2",
-                  s"${truncateUUID(nodeId)}",
-                  sl.Icon(cls := "text-indigo-600", sl.Icon.name := "hdd-rack")
+                  span(cls := "text-shadow-sm", s"${truncateUUID(nodeId)}"),
+                  sl.Icon(cls := "text-indigo-600", sl.Icon.name := "hdd-rack"),
+                  span(
+                    cls := "absolute text-xs text-shadow-md font-digital text-red-500 bottom-0 right-0",
+                    state.remainingTime.get(nodeId).map(_.toString).orEmpty
+                  )
                 ),
                 sl.Card.slots.default := div(
                   cls := "flex flex-col items-start justify-center",

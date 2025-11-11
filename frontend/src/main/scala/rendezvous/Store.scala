@@ -3,14 +3,18 @@ package rendezvous.frontend
 import cats.effect.*
 import cats.effect.implicits.*
 import cats.effect.std.Queue
+import cats.effect.std.Random
 import cats.effect.std.SecureRandom
 import cats.effect.std.Supervisor
 import cats.effect.std.UUIDGen
 import cats.syntax.all.*
+import fs2.dom.Storage
 import monocle.syntax.all.*
 import rendezvous.dtos
 
+import java.util.UUID
 import scala.concurrent.duration.*
+import scala.math.max
 
 object Store:
 
@@ -24,7 +28,16 @@ object Store:
 
       notifsQ <- Queue.unbounded[F, Notification].toResource
 
+      newNodesQ <- Queue.unbounded[F, UUID].toResource
+
+      kvStore <- Resource.pure(Storage)
+
+      ttlRef <- Ref.of[F, Option[Long]](None).toResource
+
       store <- ff4s.Store[F, State, Action](State.default): _ =>
+        case (Action.AddNode, state) => state ->
+            Random[F].betweenLong(60L, 181L).flatMap: ttl =>
+              sendQ.offer(dtos.WSProtocol.Client.AddNode(Some(ttl))) *> ttlRef.set(Some(ttl))
         case (Action.SendWS(msg), state)    => state -> sendQ.offer(msg)
         case (Action.ModifyState(f), state) => f(state) -> F.unit
 
@@ -42,6 +55,32 @@ object Store:
         .evalMap: data =>
           store.dispatch:
             Action.ModifyState(_.focus(_.updates).replace(data))
+        .compile
+        .drain
+        .background
+
+      _ <- fs2.Stream
+        .fromQueueUnterminated(newNodesQ)
+        .evalMap: nodeId =>
+          supervisor.supervise:
+            F.sleep(
+              0.5.seconds
+            ) *> // not nice but needed for the `interruptWhen` not to immediately kick in
+              fs2.Stream.fixedRateStartImmediately[F](1.second)
+                .evalMap: _ =>
+                  ttlRef.get.flatMap: ttl =>
+                    ttl.foldMapM: ttl =>
+                      store.dispatch:
+                        Action.ModifyState(state =>
+                          state.focus(_.remainingTime)
+                            .replace(state.remainingTime.updatedWith(nodeId) {
+                              case None    => Some(ttl)
+                              case Some(n) => Some(max(n - 1, 0L))
+                            })
+                        )
+                .interruptWhen(store.state.map(_.nodes.find(_(0) == nodeId)).map(_.isEmpty))
+                .compile
+                .drain
         .compile
         .drain
         .background
@@ -76,7 +115,8 @@ object Store:
           case dtos.WSProtocol.Server.NoNodesAvailable =>
             notifsQ.offer(Notification.Error("Failed to add data", "No nodes available"))
           case dtos.WSProtocol.Server.NodeAdded(nodeId) =>
-            notifsQ.offer(Notification.Success("Node added", nodeId.toString))
+            notifsQ.offer(Notification.Success("Node added", nodeId.toString)) *>
+              newNodesQ.offer(nodeId)
           case dtos.WSProtocol.Server.DataAdded(dataId) =>
             notifsQ.offer(Notification.Success("Data added", dataId.toString))
           case dtos.WSProtocol.Server.NodeRemoved(nodeId) =>

@@ -7,9 +7,10 @@ case class Update(dataId: UUID, nodeId: UUID)
 final case class State(
     updates: Set[Update],
     nodes: List[(UUID, List[UUID])],
-    notifs: List[(UUID, Notification)]
+    notifs: List[(UUID, Notification)],
+    remainingTime: Map[UUID, Long]
 )
 
 object State:
 
-  val default: State = State(Set.empty[Update], List.empty, List.empty)
+  val default: State = State(Set.empty[Update], List.empty, List.empty, Map.empty)

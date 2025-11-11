@@ -6,6 +6,8 @@ import cats.effect.std.Queue
 import cats.syntax.all.*
 import rendezvous.dtos
 
+import scala.concurrent.duration.*
+
 object Main extends IOApp.Simple:
 
   case class HttpServerException(msg: String) extends RuntimeException(msg)
@@ -21,8 +23,8 @@ object Main extends IOApp.Simple:
               in.evalMap:
                 case dtos.WSProtocol.Client.Ping =>
                   outQ.offer(dtos.WSProtocol.Server.Pong)
-                case dtos.WSProtocol.Client.AddNode =>
-                  engine.createNode.flatMap: nodeId =>
+                case dtos.WSProtocol.Client.AddNode(timeToLive) =>
+                  engine.createNode(timeToLive.map(_.seconds)).flatMap: nodeId =>
                     outQ.offer(dtos.WSProtocol.Server.NodeAdded(nodeId))
                 case dtos.WSProtocol.Client.AddData =>
                   IO.randomUUID.flatTap: dataId =>

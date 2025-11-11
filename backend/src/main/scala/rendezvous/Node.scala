@@ -26,7 +26,11 @@ trait Node:
 
 object Node:
 
-  def resource(id: UUID): Resource[IO, Node] =
+  def resource(
+      nodeId: UUID,
+      timeToLive: Option[FiniteDuration] = None,
+      heartbeat: PubSub[UUID]
+  ): Resource[IO, Node] =
     for
       supervisor <- Supervisor[IO]
       dataRef <- Ref.of[IO, ListSet[Data]](ListSet.empty).toResource
@@ -34,13 +38,15 @@ object Node:
       fibers <- SignallingMapRef
         .ofSingleImmutableMap[IO, UUID, Fiber[IO, Throwable, Unit]]()
         .toResource
-      _ <- fs2.Stream
-        .fixedRateStartImmediately[IO](5.seconds)
-        .evalMap: _ =>
-          IO.println(s"Node $id is up and running")
-        .compile
-        .drain
-        .background
+      _ <-
+        val s = fs2.Stream
+          .fixedRateStartImmediately[IO](1.second)
+          .evalMap(_ => heartbeat.publish(nodeId))
+        timeToLive
+          .fold(s)(s.interruptAfter)
+          .compile
+          .drain
+          .background
     yield new Node:
 
       def snapshot: IO[List[Data]] = dataRef.get.map(_.toList)

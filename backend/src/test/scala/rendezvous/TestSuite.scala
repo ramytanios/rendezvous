@@ -1,15 +1,15 @@
 package rendezvous.backend
 
-import munit.CatsEffectSuite
 import cats.effect.IO
 import mouse.all.*
+import munit.CatsEffectSuite
 
 class TestSuite extends CatsEffectSuite:
 
   test("engine's behavior"):
     Engine.resource().use: engine =>
       for
-        nodeId <- engine.createNode
+        nodeId <- engine.createNode(None)
         _ <- assertIOBoolean:
           engine.snapshot.map(_.keySet.size == 1)
         dataId <- IO.randomUUID.flatTap(uuid => engine.addData(Data(uuid)))

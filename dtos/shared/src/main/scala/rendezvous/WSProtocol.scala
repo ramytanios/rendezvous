@@ -9,7 +9,7 @@ object WSProtocol:
 
   enum Client:
     case Ping
-    case AddNode
+    case AddNode(timeToLive: Option[Long]) // in seconds
     case RemoveNode(id: UUID)
     case AddData
 
