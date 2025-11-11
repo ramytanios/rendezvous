@@ -7,4 +7,4 @@ An implementation of the [Rendezvous Hashing](https://en.wikipedia.org/wiki/Rend
 TODO: 
     1. Efficient hash multiplication 
     2. Weighted approach
-    3. Add test
+    3. Simulate nodes dying without manual trigger (how will server know) (show time to die in GUI in each server)
