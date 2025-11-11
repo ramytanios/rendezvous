@@ -1,5 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron&display=swap');
 @import "tailwindcss"; 
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&display=swap');
+
+@theme {  --font-digital: "Orbitron", sans-serif; }
 
 sl-icon-button::part(base) {
   @apply text-red-500;

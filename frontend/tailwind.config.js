@@ -3,11 +3,7 @@ module.exports = {
   purge: [],
   darkMode: false, // or 'media' or 'class'
   theme: {
-    extend: {
-      fontFamily: {
-        digital: ['"Orbitron"', 'monospace'],
-      },
-    },
+    extend: {},
   },
   variants: {
     extend: {},

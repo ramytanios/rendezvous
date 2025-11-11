@@ -1,4 +1,5 @@
 /*! tailwindcss v4.1.17 | MIT License | https://tailwindcss.com */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron&display=swap');
 @layer properties;
 @layer theme, base, components, utilities;
 @layer theme {
@@ -21,11 +22,10 @@
     --text-sm--line-height: calc(1.25 / 0.875);
     --text-base: 1rem;
     --text-base--line-height: calc(1.5 / 1);
-    --drop-shadow-md: 0 3px 3px rgb(0 0 0 / 0.12);
-    --drop-shadow-xl: 0 9px 7px rgb(0 0 0 / 0.1);
     --animate-ping: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
     --default-font-family: var(--font-sans);
     --default-mono-font-family: var(--font-mono);
+    --font-digital: "Orbitron", sans-serif;
   }
 }
 @layer base {
@@ -285,6 +285,9 @@
   .bg-zinc-100 {
     background-color: var(--color-zinc-100);
   }
+  .font-digital {
+    font-family: var(--font-digital);
+  }
   .font-mono {
     font-family: var(--font-mono);
   }
@@ -333,7 +336,6 @@
     }
   }
 }
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&display=swap');
 sl-icon-button::part(base) {
   color: var(--color-red-500);
 }
