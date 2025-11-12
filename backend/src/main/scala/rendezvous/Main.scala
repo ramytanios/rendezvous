@@ -12,7 +12,7 @@ object Main extends IOApp.Simple:
 
   case class HttpServerException(msg: String) extends RuntimeException(msg)
 
-  def receiveSend(engine: Engine): fs2.Pipe[IO, dtos.WSProtocol.Client, dtos.WSProtocol.Server] =
+  def ws(engine: Engine): fs2.Pipe[IO, dtos.WSProtocol.Client, dtos.WSProtocol.Server] =
 
     (in: fs2.Stream[IO, dtos.WSProtocol.Client]) =>
       fs2.Stream
@@ -23,8 +23,8 @@ object Main extends IOApp.Simple:
               in.evalMap:
                 case dtos.WSProtocol.Client.Ping =>
                   outQ.offer(dtos.WSProtocol.Server.Pong)
-                case dtos.WSProtocol.Client.AddNode(timeToLive) =>
-                  engine.createNode(timeToLive.map(_.seconds)).flatMap: nodeId =>
+                case dtos.WSProtocol.Client.AddNode(nodeId, timeToLive) =>
+                  engine.createNode(nodeId, timeToLive.map(_.seconds)).flatMap: nodeId =>
                     outQ.offer(dtos.WSProtocol.Server.NodeAdded(nodeId))
                 case dtos.WSProtocol.Client.AddData =>
                   IO.randomUUID.flatTap: dataId =>
@@ -55,4 +55,4 @@ object Main extends IOApp.Simple:
 
   override def run: IO[Unit] =
     Engine.resource().use: engine =>
-      new Server("127.0.0.1", 8090, receiveSend(engine)).run
+      new Server("127.0.0.1", 8090, ws(engine)).run

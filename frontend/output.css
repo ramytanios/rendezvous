@@ -26,6 +26,7 @@
     --default-font-family: var(--font-sans);
     --default-mono-font-family: var(--font-mono);
     --font-digital: "Orbitron", sans-serif;
+    --animate-blink: blink 0.5s ease-in-out infinite;
   }
 }
 @layer base {
@@ -243,6 +244,9 @@
   .w-screen {
     width: 100vw;
   }
+  .animate-blink {
+    animation: var(--animate-blink);
+  }
   .animate-ping {
     animation: var(--animate-ping);
   }
@@ -368,6 +372,14 @@ sl-card::part(body) {
 @keyframes ping {
   75%, 100% {
     transform: scale(2);
+    opacity: 0;
+  }
+}
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
     opacity: 0;
   }
 }

@@ -49,19 +49,22 @@ trait View:
                 sl.Card.slots.header := div(
                   cls := "text-base flex justify-between items-center gap-x-2",
                   span(cls := "text-shadow-sm", s"${truncateUUID(nodeId)}"),
-                  sl.Icon(cls := "text-indigo-600", sl.Icon.name := "hdd-rack"),
-                  span(
-                    cls := "absolute text-xs text-shadow-md font-digital text-red-500 bottom-0 right-0",
-                    state.remainingTime.get(nodeId).map(_.toString).orEmpty
-                  )
+                  sl.Icon(cls := "text-indigo-600", sl.Icon.name := "hdd-rack"), {
+                    val t = state.remainingTime.get(nodeId)
+                    val blinkCls = t.exists(_ < 10).valueOrZero("animate-blink")
+                    span(
+                      cls := s"absolute $blinkCls text-xs text-shadow-md font-digital text-red-500 bottom-0 right-0",
+                      t.map(ttl => s"ca. $ttl").orEmpty
+                    )
+                  }
                 ),
                 sl.Card.slots.default := div(
                   cls := "flex flex-col items-start justify-center",
                   data.map(dataId =>
-                    val blinkCls = state.updates
+                    val transitionCls = state.updates
                       .contains(Update(dataId, nodeId))
                       .valueOrZero(s"transition-color text-pink-500")
-                    span(cls := s"text-sm $blinkCls", s"${truncateUUID(dataId)}")
+                    span(cls := s"text-sm $transitionCls", s"${truncateUUID(dataId)}")
                   )
                 )
               ),

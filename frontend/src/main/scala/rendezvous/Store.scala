@@ -8,7 +8,7 @@ import cats.effect.std.SecureRandom
 import cats.effect.std.Supervisor
 import cats.effect.std.UUIDGen
 import cats.syntax.all.*
-import fs2.dom.Storage
+import fs2.dom.Window
 import monocle.syntax.all.*
 import rendezvous.dtos
 
@@ -30,14 +30,18 @@ object Store:
 
       newNodesQ <- Queue.unbounded[F, UUID].toResource
 
-      kvStore <- Resource.pure(Storage)
-
-      ttlRef <- Ref.of[F, Option[Long]](None).toResource
+      localStorage <- Resource.pure(Window[F].localStorage)
 
       store <- ff4s.Store[F, State, Action](State.default): _ =>
-        case (Action.AddNode, state) => state ->
-            Random[F].betweenLong(60L, 181L).flatMap: ttl =>
-              sendQ.offer(dtos.WSProtocol.Client.AddNode(Some(ttl))) *> ttlRef.set(Some(ttl))
+        case (Action.AddNode, state) => state -> {
+            for
+              ttl <- Random[F].betweenLong(60L, 181L)
+              nodeId <- UUIDGen[F].randomUUID
+              _ <- sendQ.offer(dtos.WSProtocol.Client.AddNode(nodeId, Some(ttl)))
+              _ <- localStorage.setItem(nodeId.toString, ttl.toString)
+              _ <- newNodesQ.offer(nodeId)
+            yield ()
+          }
         case (Action.SendWS(msg), state)    => state -> sendQ.offer(msg)
         case (Action.ModifyState(f), state) => f(state) -> F.unit
 
@@ -46,6 +50,18 @@ object Store:
       _ <- fs2.Stream
         .fixedDelay(30.second)
         .evalMap(_ => sendQ.offer(dtos.WSProtocol.Client.Ping))
+        .compile
+        .drain
+        .background
+
+      _ <- store
+        .state
+        .map(_.nodes.map(_(0)))
+        .discrete
+        .filter(_.nonEmpty)
+        .take(1)
+        .evalMap: ids =>
+          fs2.Stream.emits(ids).parEvalMapUnbounded(newNodesQ.offer).compile.drain
         .compile
         .drain
         .background
@@ -68,16 +84,21 @@ object Store:
             ) *> // not nice but needed for the `interruptWhen` not to immediately kick in
               fs2.Stream.fixedRateStartImmediately[F](1.second)
                 .evalMap: _ =>
-                  ttlRef.get.flatMap: ttl =>
-                    ttl.foldMapM: ttl =>
-                      store.dispatch:
-                        Action.ModifyState(state =>
-                          state.focus(_.remainingTime)
-                            .replace(state.remainingTime.updatedWith(nodeId) {
+                  localStorage.getItem(nodeId.toString).flatMap:
+                    _.foldMapM: str =>
+                      F.catchNonFatal(str.toLong).flatMap: ttl =>
+                        store.dispatch:
+                          Action.ModifyState(state =>
+                            val upd = state.remainingTime.updatedWith(nodeId) {
                               case None    => Some(ttl)
                               case Some(n) => Some(max(n - 1, 0L))
-                            })
-                        )
+                            }
+                            state.focus(_.remainingTime).replace(upd)
+                          )
+                      .flatMap: _ =>
+                        store.state.get.flatMap:
+                          _.remainingTime.get(nodeId).foldMapM: ttl =>
+                            localStorage.setItem(nodeId.toString, ttl.toString)
                 .interruptWhen(store.state.map(_.nodes.find(_(0) == nodeId)).map(_.isEmpty))
                 .compile
                 .drain
@@ -115,8 +136,7 @@ object Store:
           case dtos.WSProtocol.Server.NoNodesAvailable =>
             notifsQ.offer(Notification.Error("Failed to add data", "No nodes available"))
           case dtos.WSProtocol.Server.NodeAdded(nodeId) =>
-            notifsQ.offer(Notification.Success("Node added", nodeId.toString)) *>
-              newNodesQ.offer(nodeId)
+            notifsQ.offer(Notification.Success("Node added", nodeId.toString))
           case dtos.WSProtocol.Server.DataAdded(dataId) =>
             notifsQ.offer(Notification.Success("Data added", dataId.toString))
           case dtos.WSProtocol.Server.NodeRemoved(nodeId) =>

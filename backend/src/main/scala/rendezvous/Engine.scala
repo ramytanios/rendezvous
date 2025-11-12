@@ -17,7 +17,10 @@ import scala.concurrent.duration.*
 
 trait Engine:
 
-  def createNode(timeToLive: Option[FiniteDuration]): IO[UUID]
+  final def createNode(timeToLive: Option[FiniteDuration]): IO[UUID] =
+    IO.randomUUID.flatMap(createNode(_, timeToLive))
+
+  def createNode(nodeId: UUID, timeToLive: Option[FiniteDuration]): IO[UUID]
 
   def removeNode(nodeId: UUID): IO[Unit]
 
@@ -69,30 +72,30 @@ object Engine:
 
         def nodeWithId(id: UUID): IO[Option[Node]] = nodesRef.get.map(_.get(id))
 
-        def createNode(timeToLive: Option[FiniteDuration]): IO[UUID] =
-          IO.randomUUID.flatTap: nodeId =>
-            Deferred[IO, Node].flatMap: nodeAllocated =>
-              supervisor.supervise:
-                Node.resource(nodeId, timeToLive, pubsub).use: node =>
-                  nodeAllocated.complete(node) *> IO.never.as(())
-              .flatMap: fib =>
-                fibers.update(_ + (nodeId -> fib))
-              .flatMap: _ =>
-                nodeAllocated.get.flatMap: node =>
-                  nodesRef.update(_ + (nodeId -> node))
-              .flatMap: _ =>
-                scoresRef.get.flatMap:
-                  _.toList.traverse: (dataId, scores) =>
-                    IO(scores.addNode(nodeId))
-                      .flatTap: _ =>
-                        scoresRef.update(_ + (dataId -> scores))
-                      .flatTap: newScores =>
-                        newScores.secondBestNode.foldMapM: node =>
-                          nodeWithId(node).flatMap(_.foldMapM(_.remove(Data(dataId))))
-                      .flatMap: newScores =>
-                        newScores.bestNode.foldMapM: node =>
-                          nodeWithId(node).flatMap(_.foldMapM(_.add(Data(dataId))))
-                  .void
+        def createNode(nodeId: UUID, timeToLive: Option[FiniteDuration]): IO[UUID] =
+          Deferred[IO, Node].flatMap: nodeAllocated =>
+            supervisor.supervise:
+              Node.resource(nodeId, timeToLive, pubsub).use: node =>
+                nodeAllocated.complete(node) *> IO.never.as(())
+            .flatMap: fib =>
+              fibers.update(_ + (nodeId -> fib))
+            .flatMap: _ =>
+              nodeAllocated.get.flatMap: node =>
+                nodesRef.update(_ + (nodeId -> node))
+            .flatMap: _ =>
+              scoresRef.get.flatMap:
+                _.toList.traverse: (dataId, scores) =>
+                  IO(scores.addNode(nodeId))
+                    .flatTap: _ =>
+                      scoresRef.update(_ + (dataId -> scores))
+                    .flatTap: newScores =>
+                      newScores.secondBestNode.foldMapM: node =>
+                        nodeWithId(node).flatMap(_.foldMapM(_.remove(Data(dataId))))
+                    .flatMap: newScores =>
+                      newScores.bestNode.foldMapM: node =>
+                        nodeWithId(node).flatMap(_.foldMapM(_.add(Data(dataId))))
+                .void
+            .as(nodeId)
 
         def removeNode(nodeId: UUID): IO[Unit] =
           scoresRef.get.flatMap:
@@ -137,7 +140,7 @@ object Engine:
             _ <- heartbeatsRef.discrete.switchMap: heartbeats =>
               fs2.Stream.emits(heartbeats.keysIterator.toSeq)
                 .map: nodeId =>
-                  fs2.Stream.fixedRateStartImmediately[IO](5.second)
+                  fs2.Stream.fixedRateStartImmediately[IO](1.second)
                     .map(_ => heartbeats.get(nodeId))
                     .unNone
                     .evalMap: lastHeartbeat =>
