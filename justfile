@@ -42,7 +42,6 @@ stage:
 [unix]
 [working-directory('backend')]
 run-staged:
-    echo {{ MAGENTA }}$PWD{{ NORMAL }}
     sh ./target/universal/stage/bin/{{ project }}-backend
 
 [unix]
@@ -72,11 +71,9 @@ watch-backend:
 [unix]
 [working-directory('frontend')]
 serve-frontend:
-    echo {{ MAGENTA }}$PWD{{ NORMAL }}
     live-server --entry-file=index.html --proxy=/api:http://localhost:{{ port }}/api
 
 [unix]
 [working-directory('frontend')]
 watch-css:
-    echo {{ MAGENTA }}$PWD{{ NORMAL }}
     npx @tailwindcss/cli -i ./input.css -o ./output.css --watch
