@@ -20,5 +20,4 @@ class TestSuite extends CatsEffectSuite:
         _ <- engine.removeNode(nodeId)
         _ <- assertIOBoolean:
           engine.snapshot.map(_.keySet.size == 0)
-
       yield ()

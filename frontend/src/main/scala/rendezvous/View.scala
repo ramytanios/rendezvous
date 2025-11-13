@@ -27,7 +27,7 @@ trait View:
             sl.Button.size := "medium",
             sl.Button.outline := true,
             sl.Button.slots.prefix := sl.Icon(sl.Icon.name := "hdd-rack"),
-            onClick := (_ => Some(Action.AddNode)),
+            onClick := (_ => Some(Action.SendWS(dtos.WSProtocol.Client.AddNode))),
             p(cls := "uppercase", "Add Node")
           ),
           sl.Button(
@@ -50,7 +50,7 @@ trait View:
                   cls := "text-base flex justify-between items-center gap-x-2",
                   span(cls := "text-shadow-sm", s"${truncateUUID(nodeId)}"),
                   sl.Icon(cls := "text-indigo-600", sl.Icon.name := "hdd-rack"), {
-                    val t = state.remainingTime.get(nodeId)
+                    val t = state.ttls.get(nodeId)
                     val blinkCls = t.exists(_ < 10).valueOrZero("animate-blink")
                     span(
                       cls := s"absolute $blinkCls text-xs text-shadow-md font-digital text-red-500 bottom-0 right-0",

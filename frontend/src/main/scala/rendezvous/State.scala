@@ -8,7 +8,7 @@ final case class State(
     updates: Set[Update],
     nodes: List[(UUID, List[UUID])],
     notifs: List[(UUID, Notification)],
-    remainingTime: Map[UUID, Long]
+    ttls: Map[UUID, Long]
 )
 
 object State:

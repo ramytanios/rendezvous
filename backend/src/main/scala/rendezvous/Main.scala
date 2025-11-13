@@ -3,29 +3,39 @@ package rendezvous.backend
 import cats.effect.IO
 import cats.effect.IOApp
 import cats.effect.std.Queue
+import cats.effect.std.Random
 import cats.syntax.all.*
+import fs2.concurrent.SignallingRef
 import rendezvous.dtos
 
+import java.util.UUID
 import scala.concurrent.duration.*
+import scala.math.max
 
 object Main extends IOApp.Simple:
 
   case class HttpServerException(msg: String) extends RuntimeException(msg)
 
-  def ws(engine: Engine): fs2.Pipe[IO, dtos.WSProtocol.Client, dtos.WSProtocol.Server] =
+  def ws(
+      engine: Engine,
+      ttlsRef: SignallingRef[IO, Map[UUID, Long]]
+  ): fs2.Pipe[IO, dtos.WSProtocol.Client, dtos.WSProtocol.Server] =
 
     (in: fs2.Stream[IO, dtos.WSProtocol.Client]) =>
-      fs2.Stream
-        .eval(Queue.unbounded[IO, dtos.WSProtocol.Server])
-        .flatMap: outQ =>
+      for
+        outQ <- fs2.Stream.eval(Queue.unbounded[IO, dtos.WSProtocol.Server])
+        rng <- fs2.Stream.eval(Random.scalaUtilRandom[IO])
+        outMessage <-
           fs2.Stream.fromQueueUnterminated(outQ)
             .concurrently:
               in.evalMap:
                 case dtos.WSProtocol.Client.Ping =>
                   outQ.offer(dtos.WSProtocol.Server.Pong)
-                case dtos.WSProtocol.Client.AddNode(nodeId, timeToLive) =>
-                  engine.createNode(nodeId, timeToLive.map(_.seconds)).flatMap: nodeId =>
-                    outQ.offer(dtos.WSProtocol.Server.NodeAdded(nodeId))
+                case dtos.WSProtocol.Client.AddNode =>
+                  rng.betweenLong(30, 180).flatMap: ttl =>
+                    engine.createNode(ttl.seconds.some).flatMap: nodeId =>
+                      outQ.offer(dtos.WSProtocol.Server.NodeAdded(nodeId)) *>
+                        ttlsRef.update(_ + (nodeId -> ttl))
                 case dtos.WSProtocol.Client.AddData =>
                   IO.randomUUID.flatTap: dataId =>
                     engine.addData(Data(dataId))
@@ -36,7 +46,8 @@ object Main extends IOApp.Simple:
                       outQ.offer(dtos.WSProtocol.Server.NoNodesAvailable)
                 case dtos.WSProtocol.Client.RemoveNode(nodeId) =>
                   engine.removeNode(nodeId) *>
-                    outQ.offer(dtos.WSProtocol.Server.NodeRemoved(nodeId))
+                    outQ.offer(dtos.WSProtocol.Server.NodeRemoved(nodeId)) *>
+                    ttlsRef.update(_ - nodeId)
             .concurrently:
               engine
                 .stream
@@ -52,7 +63,18 @@ object Main extends IOApp.Simple:
                 .updates
                 .evalMap: (nodeId, data) =>
                   outQ.offer(dtos.WSProtocol.Server.Update(nodeId, data.id))
+            .concurrently:
+              ttlsRef
+                .discrete
+                .evalMap: ttls =>
+                  outQ.offer(dtos.WSProtocol.Server.Ttls(ttls))
+            .concurrently:
+              fs2.Stream
+                .fixedRateStartImmediately[IO](1.second)
+                .evalMap(_ => ttlsRef.update(_.view.mapValues(ttl => max(ttl - 1, 0)).toMap))
+      yield outMessage
 
   override def run: IO[Unit] =
     Engine.resource().use: engine =>
-      new Server("127.0.0.1", 8090, ws(engine)).run
+      SignallingRef.of[IO, Map[UUID, Long]](Map.empty).flatMap: ttlsRef =>
+        new Server("127.0.0.1", 8090, ws(engine, ttlsRef)).run
