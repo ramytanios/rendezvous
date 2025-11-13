@@ -84,8 +84,8 @@ object Store:
             notifsQ.offer(Notification.Success("Data added", dataId.toString))
           case dtos.WSProtocol.Server.NodeRemoved(nodeId) =>
             notifsQ.offer(Notification.Warning("Node removed", nodeId.toString))
-          case dtos.WSProtocol.Server.Ttls(ttls) =>
-            store.dispatch(Action.ModifyState(_.focus(_.ttls).replace(ttls)))
+          case dtos.WSProtocol.Server.Ttds(ttds) =>
+            store.dispatch(Action.ModifyState(_.focus(_.ttds).replace(ttds)))
         },
         fs2.Stream.fromQueueUnterminated(sendQ)
       )

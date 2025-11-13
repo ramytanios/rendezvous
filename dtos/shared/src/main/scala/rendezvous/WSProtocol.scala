@@ -23,7 +23,7 @@ object WSProtocol:
     case NodeAdded(nodeId: UUID)
     case DataAdded(dataId: UUID)
     case NodeRemoved(nodeId: UUID)
-    case Ttls(ttls: Map[UUID, Long])
+    case Ttds(ttds: Map[UUID, Long])
     case NoNodesAvailable
 
   object Server:

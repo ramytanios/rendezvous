@@ -18,7 +18,7 @@ object Main extends IOApp.Simple:
 
   def ws(
       engine: Engine,
-      ttlsRef: SignallingRef[IO, Map[UUID, Long]]
+      ttdsRef: SignallingRef[IO, Map[UUID, Long]]
   ): fs2.Pipe[IO, dtos.WSProtocol.Client, dtos.WSProtocol.Server] =
 
     (in: fs2.Stream[IO, dtos.WSProtocol.Client]) =>
@@ -32,10 +32,10 @@ object Main extends IOApp.Simple:
                 case dtos.WSProtocol.Client.Ping =>
                   outQ.offer(dtos.WSProtocol.Server.Pong)
                 case dtos.WSProtocol.Client.AddNode =>
-                  rng.betweenLong(30, 180).flatMap: ttl =>
-                    engine.createNode(ttl.seconds.some).flatMap: nodeId =>
+                  rng.betweenLong(30, 180).flatMap: maxLife =>
+                    engine.createNode(maxLife.seconds.some).flatMap: nodeId =>
                       outQ.offer(dtos.WSProtocol.Server.NodeAdded(nodeId)) *>
-                        ttlsRef.update(_ + (nodeId -> ttl))
+                        ttdsRef.update(_ + (nodeId -> maxLife))
                 case dtos.WSProtocol.Client.AddData =>
                   IO.randomUUID.flatTap: dataId =>
                     engine.addData(Data(dataId))
@@ -47,7 +47,7 @@ object Main extends IOApp.Simple:
                 case dtos.WSProtocol.Client.RemoveNode(nodeId) =>
                   engine.removeNode(nodeId) *>
                     outQ.offer(dtos.WSProtocol.Server.NodeRemoved(nodeId)) *>
-                    ttlsRef.update(_ - nodeId)
+                    ttdsRef.update(_ - nodeId)
             .concurrently:
               engine
                 .stream
@@ -64,17 +64,17 @@ object Main extends IOApp.Simple:
                 .evalMap: (nodeId, data) =>
                   outQ.offer(dtos.WSProtocol.Server.Update(nodeId, data.id))
             .concurrently:
-              ttlsRef
+              ttdsRef
                 .discrete
-                .evalMap: ttls =>
-                  outQ.offer(dtos.WSProtocol.Server.Ttls(ttls))
+                .evalMap: ttds =>
+                  outQ.offer(dtos.WSProtocol.Server.Ttds(ttds))
             .concurrently:
               fs2.Stream
                 .fixedRateStartImmediately[IO](1.second)
-                .evalMap(_ => ttlsRef.update(_.view.mapValues(ttl => max(ttl - 1, 0)).toMap))
+                .evalMap(_ => ttdsRef.update(_.view.mapValues(ttl => max(ttl - 1, 0)).toMap))
       yield outMessage
 
   override def run: IO[Unit] =
     Engine.resource().use: engine =>
-      SignallingRef.of[IO, Map[UUID, Long]](Map.empty).flatMap: ttlsRef =>
-        new Server("127.0.0.1", 8090, ws(engine, ttlsRef)).run
+      SignallingRef.of[IO, Map[UUID, Long]](Map.empty).flatMap: ttdsRef =>
+        new Server("127.0.0.1", 8090, ws(engine, ttdsRef)).run

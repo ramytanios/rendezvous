@@ -17,7 +17,7 @@ import scala.concurrent.duration.*
 
 trait Engine:
 
-  def createNode(timeToLive: Option[FiniteDuration]): IO[UUID]
+  def createNode(maxLife: Option[FiniteDuration]): IO[UUID]
 
   def removeNode(nodeId: UUID): IO[Unit]
 
@@ -69,11 +69,11 @@ object Engine:
 
         def nodeWithId(id: UUID): IO[Option[Node]] = nodesRef.get.map(_.get(id))
 
-        def createNode(timeToLive: Option[FiniteDuration]): IO[UUID] =
+        def createNode(maxLife: Option[FiniteDuration]): IO[UUID] =
           IO.randomUUID.flatTap: nodeId =>
             Deferred[IO, Node].flatMap: nodeAllocated =>
               supervisor.supervise:
-                Node.resource(nodeId, timeToLive, pubsub).use: node =>
+                Node.resource(nodeId, maxLife, pubsub).use: node =>
                   nodeAllocated.complete(node) *> IO.never.as(())
               .flatMap: fib =>
                 fibers.update(_ + (nodeId -> fib))
