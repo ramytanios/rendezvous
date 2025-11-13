@@ -10,4 +10,4 @@ Using:
 - [ff4s-heroicons](https://github.com/buntec/ff4s-heroicons)
 
 ### Demo: 
-![](hashing.gif)
+![](demo.gif)
