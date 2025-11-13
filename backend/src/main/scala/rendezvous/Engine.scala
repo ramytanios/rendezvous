@@ -62,7 +62,7 @@ object Engine:
               IO.raiseWhen(currNodes.length == 0)(throw new NoNodesAvailable)
             .flatMap: currNodes =>
               val ranks = new Ranking(data.id, hash, currNodes)
-              ranksRef.update(_ + (data.id -> ranks)) *> IO.pure(ranks)
+              ranksRef.update(_ + (data.id -> ranks)).as(ranks)
             .flatMap: ranks =>
               ranks.bestNode.foldMapM: node =>
                 nodeWithId(node).flatMap(_.foldMapM(_.add(data)))
@@ -71,14 +71,14 @@ object Engine:
 
         def createNode(maxLife: Option[FiniteDuration]): IO[UUID] =
           IO.randomUUID.flatTap: nodeId =>
-            Deferred[IO, Node].flatMap: nodeAllocated =>
+            Deferred[IO, Node].flatMap: isAlloc =>
               supervisor.supervise:
                 Node.resource(nodeId, maxLife, pubsub).use: node =>
-                  nodeAllocated.complete(node) *> IO.never.as(())
+                  isAlloc.complete(node) *> IO.never.as(())
               .flatMap: fib =>
                 fibers.update(_ + (nodeId -> fib))
               .flatMap: _ =>
-                nodeAllocated.get.flatMap: node =>
+                isAlloc.get.flatMap: node =>
                   nodesRef.update(_ + (nodeId -> node))
               .flatMap: _ =>
                 ranksRef.get.flatMap:
@@ -99,11 +99,8 @@ object Engine:
             _.toList.traverse: (dataId, ranks) =>
               IO(ranks.removeNode(nodeId))
                 .flatMap: ranks =>
-                  if ranks.nodes.isEmpty then
-                    ranksRef.update(_ - dataId)
-                  else
-                    ranksRef.update(_ + (dataId -> ranks))
-            .void
+                  if ranks.nodes.isEmpty then ranksRef.update(_ - dataId)
+                  else ranksRef.update(_ + (dataId -> ranks))
           .flatMap: _ =>
             nodeWithId(nodeId).flatMap:
               _.foldMapM: node =>
@@ -142,9 +139,9 @@ object Engine:
                     .unNone
                     .evalMap: lastHeartbeat =>
                       IO.realTimeInstant.flatMap: now =>
-                        val nodeIsDead = Duration.between(lastHeartbeat, now)
+                        val isDead = Duration.between(lastHeartbeat, now)
                           .toMillis.millis > 3.seconds
-                        IO.whenA(nodeIsDead):
+                        IO.whenA(isDead):
                           engine.removeNode(nodeId) *> heartbeatsRef.update(_ - nodeId)
                 .parJoinUnbounded
             .compile
