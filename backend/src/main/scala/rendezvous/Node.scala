@@ -28,7 +28,7 @@ object Node:
 
   def resource(
       nodeId: UUID,
-      timeToLive: Option[FiniteDuration] = None,
+      maxLife: Option[FiniteDuration] = None,
       heartbeat: PubSub[UUID]
   ): Resource[IO, Node] =
     for
@@ -42,7 +42,7 @@ object Node:
         val s = fs2.Stream
           .fixedRateStartImmediately[IO](1.second)
           .evalMap(_ => heartbeat.publish(nodeId))
-        timeToLive
+        maxLife
           .fold(s)(s.interruptAfter)
           .compile
           .drain

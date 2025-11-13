@@ -40,7 +40,7 @@ object Engine:
         supervisor <- Supervisor[IO]
         hash <- IO.unit.as(Hash.mmh3()).toResource
         nodesRef <- SignallingRef.of[IO, ListMap[UUID, Node]](ListMap.empty).toResource
-        scoresRef <- SignallingRef.of[IO, Map[UUID, Scores]](Map.empty).toResource
+        ranksRef <- SignallingRef.of[IO, Map[UUID, Ranking]](Map.empty).toResource
         fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
       yield new Engine:
 
@@ -61,10 +61,10 @@ object Engine:
             .flatTap: currNodes =>
               IO.raiseWhen(currNodes.length == 0)(throw new NoNodesAvailable)
             .flatMap: currNodes =>
-              val scores = new Scores(data.id, hash, currNodes)
-              scoresRef.update(_ + (data.id -> scores)) *> IO.pure(scores)
-            .flatMap: scores =>
-              scores.bestNode.foldMapM: node =>
+              val ranks = new Ranking(data.id, hash, currNodes)
+              ranksRef.update(_ + (data.id -> ranks)) *> IO.pure(ranks)
+            .flatMap: ranks =>
+              ranks.bestNode.foldMapM: node =>
                 nodeWithId(node).flatMap(_.foldMapM(_.add(data)))
 
         def nodeWithId(id: UUID): IO[Option[Node]] = nodesRef.get.map(_.get(id))
@@ -81,36 +81,36 @@ object Engine:
                 nodeAllocated.get.flatMap: node =>
                   nodesRef.update(_ + (nodeId -> node))
               .flatMap: _ =>
-                scoresRef.get.flatMap:
-                  _.toList.traverse: (dataId, scores) =>
-                    IO(scores.addNode(nodeId))
+                ranksRef.get.flatMap:
+                  _.toList.traverse: (dataId, ranks) =>
+                    IO(ranks.addNode(nodeId))
                       .flatTap: _ =>
-                        scoresRef.update(_ + (dataId -> scores))
-                      .flatTap: newScores =>
-                        newScores.secondBestNode.foldMapM: node =>
+                        ranksRef.update(_ + (dataId -> ranks))
+                      .flatTap: newRanks =>
+                        newRanks.secondBestNode.foldMapM: node =>
                           nodeWithId(node).flatMap(_.foldMapM(_.remove(Data(dataId))))
-                      .flatMap: newScores =>
-                        newScores.bestNode.foldMapM: node =>
+                      .flatMap: newRanks =>
+                        newRanks.bestNode.foldMapM: node =>
                           nodeWithId(node).flatMap(_.foldMapM(_.add(Data(dataId))))
                   .void
 
         def removeNode(nodeId: UUID): IO[Unit] =
-          scoresRef.get.flatMap:
-            _.toList.traverse: (dataId, scores) =>
-              IO(scores.removeNode(nodeId))
-                .flatMap: scores =>
-                  if scores.scores.isEmpty then
-                    scoresRef.update(_ - dataId)
+          ranksRef.get.flatMap:
+            _.toList.traverse: (dataId, ranks) =>
+              IO(ranks.removeNode(nodeId))
+                .flatMap: ranks =>
+                  if ranks.nodes.isEmpty then
+                    ranksRef.update(_ - dataId)
                   else
-                    scoresRef.update(_ + (dataId -> scores))
+                    ranksRef.update(_ + (dataId -> ranks))
             .void
           .flatMap: _ =>
             nodeWithId(nodeId).flatMap:
               _.foldMapM: node =>
                 fs2.Stream.evalSeq(node.snapshot)
                   .parEvalMapUnbounded: data =>
-                    scoresRef.get.flatMap(_.get(data.id).foldMapM: scores =>
-                      scores.bestNode.foldMapM: node =>
+                    ranksRef.get.flatMap(_.get(data.id).foldMapM: ranks =>
+                      ranks.bestNode.foldMapM: node =>
                         nodeWithId(node).flatMap(_.foldMapM(_.add(data))))
                   .compile
                   .drain
@@ -143,7 +143,7 @@ object Engine:
                     .evalMap: lastHeartbeat =>
                       IO.realTimeInstant.flatMap: now =>
                         val nodeIsDead = Duration.between(lastHeartbeat, now)
-                          .toMillis.millis > 10.seconds
+                          .toMillis.millis > 3.seconds
                         IO.whenA(nodeIsDead):
                           engine.removeNode(nodeId) *> heartbeatsRef.update(_ - nodeId)
                 .parJoinUnbounded
