@@ -12,7 +12,7 @@ class TestSuite extends CatsEffectSuite:
         nodeId <- engine.createNode(None)
         _ <- assertIOBoolean:
           engine.snapshot.map(_.keySet.size == 1)
-        nodeId <- IO.randomUUID.flatTap(uuid => engine.addTask(Task(uuid)))
+        taskId <- IO.randomUUID.flatTap(uuid => engine.addTask(Task(uuid)))
         _ <- assertIOBoolean:
           engine.snapshot
             .map(_.get(nodeId))

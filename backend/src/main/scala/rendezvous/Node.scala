@@ -16,9 +16,9 @@ import scala.concurrent.duration.*
 
 trait Node:
 
-  def add(data: Task): IO[Unit]
+  def add(task: Task): IO[Unit]
 
-  def remove(data: Task): IO[Unit]
+  def remove(task: Task): IO[Unit]
 
   def snapshot: IO[List[Task]]
 
@@ -33,7 +33,7 @@ object Node:
   ): Resource[IO, Node] =
     for
       supervisor <- Supervisor[IO]
-      dataRef <- Ref.of[IO, ListSet[Task]](ListSet.empty).toResource
+      taskRef <- Ref.of[IO, ListSet[Task]](ListSet.empty).toResource
       updatesQ <- Queue.unbounded[IO, Task].toResource
       fibers <- SignallingMapRef
         .ofSingleImmutableMap[IO, UUID, Fiber[IO, Throwable, Unit]]()
@@ -49,21 +49,21 @@ object Node:
           .background
     yield new Node:
 
-      def snapshot: IO[List[Task]] = dataRef.get.map(_.toList)
+      def snapshot: IO[List[Task]] = taskRef.get.map(_.toList)
 
       def updates: fs2.Stream[IO, Task] = fs2.Stream.fromQueueUnterminated(updatesQ)
 
-      def remove(data: Task): IO[Unit] =
-        dataRef.update(_ - data) *> fibers(data.id).get.flatMap(_.foldMapM(_.cancel))
+      def remove(task: Task): IO[Unit] =
+        taskRef.update(_ - task) *> fibers(task.id).get.flatMap(_.foldMapM(_.cancel))
 
-      def add(data: Task): IO[Unit] =
+      def add(task: Task): IO[Unit] =
         supervisor
           .supervise:
             fs2.Stream
               .fixedRateStartImmediately[IO](3.seconds)
-              .evalMap(_ => updatesQ.offer(data))
+              .evalMap(_ => updatesQ.offer(task))
               .compile
               .drain
           .flatMap: fib =>
-            fibers.getAndSetKeyValue(data.id, fib) <* dataRef.update(_ + data)
+            fibers.getAndSetKeyValue(task.id, fib) <* taskRef.update(_ + task)
           .flatMap(_.foldMapM(_.cancel))
