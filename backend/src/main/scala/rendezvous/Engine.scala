@@ -34,12 +34,12 @@ object Engine:
 
   def resource(): Resource[IO, Engine] =
 
-    def impl(pubsub: PubSub[NodeID]) = // replace TaskID with ADT
+    def impl(pubsub: PubSub[NodeID]) =
       for
         supervisor <- Supervisor[IO]
         hash <- IO.pure(Hash.mmh3()).toResource
         nodesRef <- SignallingRef.of[IO, ListMap[NodeID, Node]](ListMap.empty).toResource
-        ranksRef <- SignallingRef.of[IO, Map[TaskID, Ranking]](Map.empty).toResource
+        ranksRef <- SignallingRef.of[IO, Map[Task, Ranking]](Map.empty).toResource
         fibers <- Ref.of[IO, Map[NodeID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
       yield new Engine:
 
@@ -61,7 +61,7 @@ object Engine:
               IO.raiseWhen(currNodes.length == 0)(NoNodesAvailable)
             .flatMap: currNodes =>
               val ranks = new Ranking(task.id, hash, currNodes)
-              ranksRef.update(_ + (task.id -> ranks)).as(ranks)
+              ranksRef.update(_ + (task -> ranks)).as(ranks)
             .flatMap: ranks =>
               ranks.bestNode.foldMapM: node =>
                 nodeWithId(node).flatMap(_.foldMapM(_.add(task)))
@@ -81,16 +81,16 @@ object Engine:
                   nodesRef.update(_ + (nodeId -> node))
               .flatMap: _ =>
                 ranksRef.get.flatMap:
-                  _.toList.traverse: (taskId, ranks) =>
+                  _.toList.traverse: (task, ranks) =>
                     IO(ranks.addNode(nodeId))
                       .flatTap: _ =>
-                        ranksRef.update(_ + (taskId -> ranks))
+                        ranksRef.update(_ + (task -> ranks))
                       .flatTap: newRanks =>
                         newRanks.secondBestNode.foldMapM: node =>
-                          nodeWithId(node).flatMap(_.foldMapM(_.remove(taskId)))
+                          nodeWithId(node).flatMap(_.foldMapM(_.remove(task)))
                       .flatMap: newRanks =>
                         newRanks.bestNode.foldMapM: node =>
-                          nodeWithId(node).flatMap(_.foldMapM(_.add(Task(taskId))))
+                          nodeWithId(node).flatMap(_.foldMapM(_.add(task)))
                   .void
 
         def removeNode(nodeId: NodeID): IO[Unit] =
@@ -105,7 +105,7 @@ object Engine:
               _.foldMapM: node =>
                 fs2.Stream.evalSeq(node.snapshot)
                   .parEvalMapUnbounded: task =>
-                    ranksRef.get.flatMap(_.get(task.id).foldMapM: ranks =>
+                    ranksRef.get.flatMap(_.get(task).foldMapM: ranks =>
                       ranks.bestNode.foldMapM: node =>
                         nodeWithId(node).flatMap(_.foldMapM(_.add(task))))
                   .compile

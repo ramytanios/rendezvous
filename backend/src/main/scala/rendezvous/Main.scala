@@ -37,7 +37,7 @@ object Main extends IOApp.Simple:
                         ttdsRef.update(_ + (nodeId -> maxLife))
                 case dtos.WSProtocol.Client.AddTask =>
                   IO.randomUUID.flatTap: taskId =>
-                    engine.addTask(Task(TaskID(taskId)))
+                    engine.addTask(Task(TaskID(taskId), Work.Dummy))
                   .flatMap: taskId =>
                     outQ.offer(dtos.WSProtocol.Server.TaskAdded(taskId))
                   .handleErrorWith:
@@ -54,6 +54,7 @@ object Main extends IOApp.Simple:
                   _.toList
                     .traverse: (uuid, node) =>
                       node.snapshot.map(tasks => uuid.value -> tasks.map(_.id.value))
+                .changes
                 .evalMap: data =>
                   outQ.offer(dtos.WSProtocol.Server.Nodes(data))
             .concurrently:

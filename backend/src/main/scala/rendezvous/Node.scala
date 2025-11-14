@@ -17,7 +17,7 @@ trait Node:
 
   def add(task: Task): IO[Unit]
 
-  def remove(taskId: TaskID): IO[Unit]
+  def remove(task: Task): IO[Unit]
 
   def snapshot: IO[List[Task]]
 
@@ -52,17 +52,20 @@ object Node:
 
       def updates: fs2.Stream[IO, Task] = fs2.Stream.fromQueueUnterminated(updatesQ)
 
-      def remove(taskId: TaskID): IO[Unit] =
-        taskRef.update(_ - taskId) *> fibers(taskId).get.flatMap(_.foldMapM(_.cancel))
+      def remove(task: Task): IO[Unit] =
+        taskRef.update(_ - task.id) *> fibers(task.id).get.flatMap(_.foldMapM(_.cancel))
 
       def add(task: Task): IO[Unit] =
         supervisor
           .supervise:
-            fs2.Stream
-              .fixedRateStartImmediately[IO](3.seconds)
-              .evalMap(_ => updatesQ.offer(task))
-              .compile
-              .drain
+            (
+              Exec.run(task),
+              fs2.Stream
+                .fixedRateStartImmediately[IO](3.seconds)
+                .evalMap(_ => updatesQ.offer(task))
+                .compile
+                .drain
+            ).parTupled.void
           .flatMap: fib =>
             fibers.getAndSetKeyValue(task.id, fib) <* taskRef.update(_ + (task.id -> task))
           .flatMap(_.foldMapM(_.cancel))
