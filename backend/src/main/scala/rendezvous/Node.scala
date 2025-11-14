@@ -10,14 +10,14 @@ import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingMapRef
 
-import scala.collection.immutable.ListSet
+import scala.collection.immutable.ListMap
 import scala.concurrent.duration.*
 
 trait Node:
 
   def add(task: Task): IO[Unit]
 
-  def remove(task: Task): IO[Unit]
+  def remove(taskId: TaskID): IO[Unit]
 
   def snapshot: IO[List[Task]]
 
@@ -32,7 +32,7 @@ object Node:
   ): Resource[IO, Node] =
     for
       supervisor <- Supervisor[IO]
-      taskRef <- Ref.of[IO, ListSet[Task]](ListSet.empty).toResource
+      taskRef <- Ref.of[IO, ListMap[TaskID, Task]](ListMap.empty).toResource
       updatesQ <- Queue.unbounded[IO, Task].toResource
       fibers <- SignallingMapRef
         .ofSingleImmutableMap[IO, TaskID, Fiber[IO, Throwable, Unit]]()
@@ -48,12 +48,12 @@ object Node:
           .background
     yield new Node:
 
-      def snapshot: IO[List[Task]] = taskRef.get.map(_.toList)
+      def snapshot: IO[List[Task]] = taskRef.get.map(_.values.toList)
 
       def updates: fs2.Stream[IO, Task] = fs2.Stream.fromQueueUnterminated(updatesQ)
 
-      def remove(task: Task): IO[Unit] =
-        taskRef.update(_ - task) *> fibers(task.id).get.flatMap(_.foldMapM(_.cancel))
+      def remove(taskId: TaskID): IO[Unit] =
+        taskRef.update(_ - taskId) *> fibers(taskId).get.flatMap(_.foldMapM(_.cancel))
 
       def add(task: Task): IO[Unit] =
         supervisor
@@ -64,5 +64,5 @@ object Node:
               .compile
               .drain
           .flatMap: fib =>
-            fibers.getAndSetKeyValue(task.id, fib) <* taskRef.update(_ + task)
+            fibers.getAndSetKeyValue(task.id, fib) <* taskRef.update(_ + (task.id -> task))
           .flatMap(_.foldMapM(_.cancel))

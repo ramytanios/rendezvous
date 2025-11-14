@@ -34,7 +34,7 @@ object Engine:
 
   def resource(): Resource[IO, Engine] =
 
-    def impl(pubsub: PubSub[NodeID]) =
+    def impl(pubsub: PubSub[NodeID]) = // replace TaskID with ADT
       for
         supervisor <- Supervisor[IO]
         hash <- IO.pure(Hash.mmh3()).toResource
@@ -87,7 +87,7 @@ object Engine:
                         ranksRef.update(_ + (taskId -> ranks))
                       .flatTap: newRanks =>
                         newRanks.secondBestNode.foldMapM: node =>
-                          nodeWithId(node).flatMap(_.foldMapM(_.remove(Task(taskId))))
+                          nodeWithId(node).flatMap(_.foldMapM(_.remove(taskId)))
                       .flatMap: newRanks =>
                         newRanks.bestNode.foldMapM: node =>
                           nodeWithId(node).flatMap(_.foldMapM(_.add(Task(taskId))))
