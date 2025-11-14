@@ -12,11 +12,11 @@ class TestSuite extends CatsEffectSuite:
         nodeId <- engine.createNode(None)
         _ <- assertIOBoolean:
           engine.snapshot.map(_.keySet.size == 1)
-        taskId <- IO.randomUUID.flatTap(uuid => engine.addTask(Task(uuid)))
+        taskId <- IO.randomUUID.flatTap(uuid => engine.addTask(Task(uuid, IO.unit)))
         _ <- assertIOBoolean:
           engine.snapshot
             .map(_.get(nodeId))
-            .existsF(_.snapshot.map(_.headOption).existsIn(_.id == nodeId))
+            .existsF(_.snapshot.map(_.headOption).existsIn(_ == taskId))
         _ <- engine.removeNode(nodeId)
         _ <- assertIOBoolean:
           engine.snapshot.map(_.keySet.size == 0)
