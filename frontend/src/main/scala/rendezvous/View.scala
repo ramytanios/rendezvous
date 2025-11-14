@@ -35,13 +35,13 @@ trait View:
             sl.Button.size := "medium",
             sl.Button.outline := true,
             sl.Button.slots.prefix := sl.Icon(sl.Icon.name := "clipboard-data"),
-            onClick := (_ => Some(Action.SendWS(dtos.WSProtocol.Client.AddData))),
-            p(cls := "uppercase", "Add Data")
+            onClick := (_ => Some(Action.SendWS(dtos.WSProtocol.Client.AddTask))),
+            p(cls := "uppercase", "Add Task")
           )
         ),
         div(
           cls := "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4",
-          state.nodes.map: (nodeId, data) =>
+          state.nodes.map: (nodeId, tasks) =>
             div(
               cls := "relative h-48",
               sl.Card(
@@ -60,12 +60,11 @@ trait View:
                 ),
                 sl.Card.slots.default := div(
                   cls := "flex flex-col items-start justify-center",
-                  data.map(dataId =>
+                  tasks.map: taskId =>
                     val transitionCls = state.updates
-                      .contains(Update(dataId, nodeId))
+                      .contains(Update(taskId, nodeId))
                       .valueOrZero(s"transition-color text-pink-500")
-                    span(cls := s"text-sm $transitionCls", s"${truncateUUID(dataId)}")
-                  )
+                    span(cls := s"text-sm $transitionCls", s"${truncateUUID(taskId)}")
                 )
               ),
               span(

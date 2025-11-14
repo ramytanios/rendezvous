@@ -36,13 +36,13 @@ object Main extends IOApp.Simple:
                     engine.createNode(maxLife.seconds.some).flatMap: nodeId =>
                       outQ.offer(dtos.WSProtocol.Server.NodeAdded(nodeId)) *>
                         ttdsRef.update(_ + (nodeId -> maxLife))
-                case dtos.WSProtocol.Client.AddData =>
-                  IO.randomUUID.flatTap: dataId =>
-                    engine.addData(Data(dataId))
-                  .flatMap: dataId =>
-                    outQ.offer(dtos.WSProtocol.Server.DataAdded(dataId))
+                case dtos.WSProtocol.Client.AddTask =>
+                  IO.randomUUID.flatTap: taskId =>
+                    engine.addTask(Task(taskId))
+                  .flatMap: taskId =>
+                    outQ.offer(dtos.WSProtocol.Server.TaskAdded(taskId))
                   .handleErrorWith:
-                    case Engine.NoNodesAvailable() =>
+                    case Engine.NoNodesAvailable =>
                       outQ.offer(dtos.WSProtocol.Server.NoNodesAvailable)
                 case dtos.WSProtocol.Client.RemoveNode(nodeId) =>
                   engine.removeNode(nodeId) *>
@@ -54,15 +54,15 @@ object Main extends IOApp.Simple:
                 .evalMap:
                   _.toList
                     .traverse: (uuid, node) =>
-                      node.snapshot.map(data => uuid -> data.map(_.id))
+                      node.snapshot.map(tasks => uuid -> tasks.map(_.id))
                 .changes
                 .evalMap: data =>
                   outQ.offer(dtos.WSProtocol.Server.Nodes(data))
             .concurrently:
               engine
                 .updates
-                .evalMap: (nodeId, data) =>
-                  outQ.offer(dtos.WSProtocol.Server.Update(nodeId, data.id))
+                .evalMap: (nodeId, task) =>
+                  outQ.offer(dtos.WSProtocol.Server.Update(nodeId, task.id))
             .concurrently:
               ttdsRef
                 .discrete

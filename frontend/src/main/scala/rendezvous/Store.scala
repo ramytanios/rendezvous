@@ -42,9 +42,9 @@ object Store:
 
       _ <- updates
         .updates
-        .evalMap: data =>
+        .evalMap: upds =>
           store.dispatch:
-            Action.ModifyState(_.focus(_.updates).replace(data))
+            Action.ModifyState(_.focus(_.updates).replace(upds))
         .compile
         .drain
         .background
@@ -72,16 +72,16 @@ object Store:
         s"ws://127.0.0.1:8090/api/ws",
         _.evalMap {
           case dtos.WSProtocol.Server.Pong => F.delay(println("pong received"))
-          case dtos.WSProtocol.Server.Update(nodeId, dataId) =>
-            updates.set(Update(dataId, nodeId), 1.second)
+          case dtos.WSProtocol.Server.Update(nodeId, taskId) =>
+            updates.set(Update(taskId, nodeId), 1.second)
           case dtos.WSProtocol.Server.Nodes(nodes) =>
             store.dispatch(Action.ModifyState(_.focus(_.nodes).replace(nodes)))
           case dtos.WSProtocol.Server.NoNodesAvailable =>
-            notifsQ.offer(Notification.Error("Failed to add data", "No nodes available"))
+            notifsQ.offer(Notification.Error("Failed to add task", "No nodes available"))
           case dtos.WSProtocol.Server.NodeAdded(nodeId) =>
             notifsQ.offer(Notification.Success("Node added", nodeId.toString))
-          case dtos.WSProtocol.Server.DataAdded(dataId) =>
-            notifsQ.offer(Notification.Success("Data added", dataId.toString))
+          case dtos.WSProtocol.Server.TaskAdded(taskId) =>
+            notifsQ.offer(Notification.Success("Task added", taskId.toString))
           case dtos.WSProtocol.Server.NodeRemoved(nodeId) =>
             notifsQ.offer(Notification.Warning("Node removed", nodeId.toString))
           case dtos.WSProtocol.Server.Ttds(ttds) =>

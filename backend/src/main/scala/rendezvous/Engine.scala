@@ -21,24 +21,24 @@ trait Engine:
 
   def removeNode(nodeId: UUID): IO[Unit]
 
-  def addData(data: Data): IO[Unit]
+  def addTask(task: Task): IO[Unit]
 
   def snapshot: IO[ListMap[UUID, Node]]
 
   def stream: fs2.Stream[IO, ListMap[UUID, Node]]
 
-  def updates: fs2.Stream[IO, (UUID, Data)]
+  def updates: fs2.Stream[IO, (UUID, Task)]
 
 object Engine:
 
-  case class NoNodesAvailable() extends RuntimeException("no nodes available")
+  case object NoNodesAvailable extends RuntimeException("no nodes available")
 
   def resource(): Resource[IO, Engine] =
 
     def impl(pubsub: PubSub[UUID]) =
       for
         supervisor <- Supervisor[IO]
-        hash <- IO.unit.as(Hash.mmh3()).toResource
+        hash <- IO.pure(Hash.mmh3()).toResource
         nodesRef <- SignallingRef.of[IO, ListMap[UUID, Node]](ListMap.empty).toResource
         ranksRef <- SignallingRef.of[IO, Map[UUID, Ranking]](Map.empty).toResource
         fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
@@ -49,23 +49,23 @@ object Engine:
         def stream: fs2.Stream[IO, ListMap[UUID, Node]] =
           nodesRef.discrete.merge(fs2.Stream.repeatEval(nodesRef.get))
 
-        def updates: fs2.Stream[IO, (UUID, Data)] =
+        def updates: fs2.Stream[IO, (UUID, Task)] =
           nodesRef.discrete.switchMap: nodes =>
             fs2.Stream.emits(nodes.toList)
               .map: (nodeId, node) =>
                 node.updates.tupleLeft(nodeId)
               .parJoinUnbounded
 
-        def addData(data: Data): IO[Unit] =
+        def addTask(task: Task): IO[Unit] =
           nodesRef.get.map(_.keysIterator.toList)
             .flatTap: currNodes =>
-              IO.raiseWhen(currNodes.length == 0)(throw new NoNodesAvailable)
+              IO.raiseWhen(currNodes.length == 0)(NoNodesAvailable)
             .flatMap: currNodes =>
-              val ranks = new Ranking(data.id, hash, currNodes)
-              ranksRef.update(_ + (data.id -> ranks)).as(ranks)
+              val ranks = new Ranking(task.id, hash, currNodes)
+              ranksRef.update(_ + (task.id -> ranks)).as(ranks)
             .flatMap: ranks =>
               ranks.bestNode.foldMapM: node =>
-                nodeWithId(node).flatMap(_.foldMapM(_.add(data)))
+                nodeWithId(node).flatMap(_.foldMapM(_.add(task)))
 
         def nodeWithId(id: UUID): IO[Option[Node]] = nodesRef.get.map(_.get(id))
 
@@ -82,33 +82,33 @@ object Engine:
                   nodesRef.update(_ + (nodeId -> node))
               .flatMap: _ =>
                 ranksRef.get.flatMap:
-                  _.toList.traverse: (dataId, ranks) =>
+                  _.toList.traverse: (taskId, ranks) =>
                     IO(ranks.addNode(nodeId))
                       .flatTap: _ =>
-                        ranksRef.update(_ + (dataId -> ranks))
+                        ranksRef.update(_ + (taskId -> ranks))
                       .flatTap: newRanks =>
                         newRanks.secondBestNode.foldMapM: node =>
-                          nodeWithId(node).flatMap(_.foldMapM(_.remove(Data(dataId))))
+                          nodeWithId(node).flatMap(_.foldMapM(_.remove(Task(taskId))))
                       .flatMap: newRanks =>
                         newRanks.bestNode.foldMapM: node =>
-                          nodeWithId(node).flatMap(_.foldMapM(_.add(Data(dataId))))
+                          nodeWithId(node).flatMap(_.foldMapM(_.add(Task(taskId))))
                   .void
 
         def removeNode(nodeId: UUID): IO[Unit] =
           ranksRef.get.flatMap:
-            _.toList.traverse: (dataId, ranks) =>
+            _.toList.traverse: (taskId, ranks) =>
               IO(ranks.removeNode(nodeId))
                 .flatMap: ranks =>
-                  if ranks.nodes.isEmpty then ranksRef.update(_ - dataId)
-                  else ranksRef.update(_ + (dataId -> ranks))
+                  if ranks.nodes.isEmpty then ranksRef.update(_ - taskId)
+                  else ranksRef.update(_ + (taskId -> ranks))
           .flatMap: _ =>
             nodeWithId(nodeId).flatMap:
               _.foldMapM: node =>
                 fs2.Stream.evalSeq(node.snapshot)
-                  .parEvalMapUnbounded: data =>
-                    ranksRef.get.flatMap(_.get(data.id).foldMapM: ranks =>
+                  .parEvalMapUnbounded: task =>
+                    ranksRef.get.flatMap(_.get(task.id).foldMapM: ranks =>
                       ranks.bestNode.foldMapM: node =>
-                        nodeWithId(node).flatMap(_.foldMapM(_.add(data))))
+                        nodeWithId(node).flatMap(_.foldMapM(_.add(task))))
                   .compile
                   .drain
           .flatMap: _ =>

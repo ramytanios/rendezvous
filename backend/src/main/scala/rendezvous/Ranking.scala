@@ -4,13 +4,13 @@ import java.util.UUID
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Map
 
-class Ranking(dataId: UUID, hash: Hash, initNodes: List[UUID]):
+class Ranking(taskId: UUID, hash: Hash, initNodes: List[UUID]):
 
   private val scores: Map[UUID, Int] = Map.from(initNodes.map(nodeId => nodeId -> hashImpl(nodeId)))
 
   private val nodeIds: ArrayBuffer[UUID] = ArrayBuffer.from(initNodes).sortBy(scores(_))
 
-  private def hashImpl(nodeId: UUID): Int = hash.hash(s"$dataId${nodeId}")
+  private def hashImpl(nodeId: UUID): Int = hash.hash(s"$taskId${nodeId}")
 
   def bestNode: Option[UUID] = nodeIds.lastOption
 
