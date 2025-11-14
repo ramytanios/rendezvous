@@ -11,23 +11,22 @@ import fs2.concurrent.SignallingRef
 
 import java.time.Duration
 import java.time.Instant
-import java.util.UUID
 import scala.collection.immutable.ListMap
 import scala.concurrent.duration.*
 
 trait Engine:
 
-  def createNode(maxLife: Option[FiniteDuration]): IO[UUID]
+  def createNode(maxLife: Option[FiniteDuration]): IO[NodeID]
 
-  def removeNode(nodeId: UUID): IO[Unit]
+  def removeNode(nodeId: NodeID): IO[Unit]
 
   def addTask(task: Task): IO[Unit]
 
-  def snapshot: IO[ListMap[UUID, Node]]
+  def snapshot: IO[ListMap[NodeID, Node]]
 
-  def stream: fs2.Stream[IO, ListMap[UUID, Node]]
+  def stream: fs2.Stream[IO, ListMap[NodeID, Node]]
 
-  def updates: fs2.Stream[IO, (UUID, Task)]
+  def updates: fs2.Stream[IO, (NodeID, Task)]
 
 object Engine:
 
@@ -35,21 +34,21 @@ object Engine:
 
   def resource(): Resource[IO, Engine] =
 
-    def impl(pubsub: PubSub[UUID]) =
+    def impl(pubsub: PubSub[NodeID]) =
       for
         supervisor <- Supervisor[IO]
         hash <- IO.pure(Hash.mmh3()).toResource
-        nodesRef <- SignallingRef.of[IO, ListMap[UUID, Node]](ListMap.empty).toResource
-        ranksRef <- SignallingRef.of[IO, Map[UUID, Ranking]](Map.empty).toResource
-        fibers <- Ref.of[IO, Map[UUID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
+        nodesRef <- SignallingRef.of[IO, ListMap[NodeID, Node]](ListMap.empty).toResource
+        ranksRef <- SignallingRef.of[IO, Map[TaskID, Ranking]](Map.empty).toResource
+        fibers <- Ref.of[IO, Map[NodeID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
       yield new Engine:
 
-        def snapshot: IO[ListMap[UUID, Node]] = nodesRef.get
+        def snapshot: IO[ListMap[NodeID, Node]] = nodesRef.get
 
-        def stream: fs2.Stream[IO, ListMap[UUID, Node]] =
+        def stream: fs2.Stream[IO, ListMap[NodeID, Node]] =
           nodesRef.discrete.merge(fs2.Stream.repeatEval(nodesRef.get))
 
-        def updates: fs2.Stream[IO, (UUID, Task)] =
+        def updates: fs2.Stream[IO, (NodeID, Task)] =
           nodesRef.discrete.switchMap: nodes =>
             fs2.Stream.emits(nodes.toList)
               .map: (nodeId, node) =>
@@ -67,10 +66,10 @@ object Engine:
               ranks.bestNode.foldMapM: node =>
                 nodeWithId(node).flatMap(_.foldMapM(_.add(task)))
 
-        def nodeWithId(id: UUID): IO[Option[Node]] = nodesRef.get.map(_.get(id))
+        def nodeWithId(id: NodeID): IO[Option[Node]] = nodesRef.get.map(_.get(id))
 
-        def createNode(maxLife: Option[FiniteDuration]): IO[UUID] =
-          IO.randomUUID.flatTap: nodeId =>
+        def createNode(maxLife: Option[FiniteDuration]): IO[NodeID] =
+          IO.randomUUID.map(NodeID(_)).flatTap: nodeId =>
             Deferred[IO, Node].flatMap: isAlloc =>
               supervisor.supervise:
                 Node.resource(nodeId, maxLife, pubsub).use: node =>
@@ -94,7 +93,7 @@ object Engine:
                           nodeWithId(node).flatMap(_.foldMapM(_.add(Task(taskId))))
                   .void
 
-        def removeNode(nodeId: UUID): IO[Unit] =
+        def removeNode(nodeId: NodeID): IO[Unit] =
           ranksRef.get.flatMap:
             _.toList.traverse: (taskId, ranks) =>
               IO(ranks.removeNode(nodeId))
@@ -118,11 +117,11 @@ object Engine:
           .flatMap: _ =>
             IO.println(s"Node $nodeId is removed")
 
-    PubSub[UUID].toResource
+    PubSub[NodeID].toResource
       .flatMap: heartbeatTopic =>
         impl(heartbeatTopic).flatTap: engine =>
           for
-            heartbeatsRef <- SignallingRef.of[IO, Map[UUID, Instant]](Map.empty).toResource
+            heartbeatsRef <- SignallingRef.of[IO, Map[NodeID, Instant]](Map.empty).toResource
             _ <- heartbeatTopic
               .subscribe
               .evalMap: nodeId =>

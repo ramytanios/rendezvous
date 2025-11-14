@@ -10,7 +10,6 @@ import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingMapRef
 
-import java.util.UUID
 import scala.collection.immutable.ListSet
 import scala.concurrent.duration.*
 
@@ -27,16 +26,16 @@ trait Node:
 object Node:
 
   def resource(
-      nodeId: UUID,
+      nodeId: NodeID,
       maxLife: Option[FiniteDuration] = None,
-      heartbeat: PubSub[UUID]
+      heartbeat: PubSub[NodeID]
   ): Resource[IO, Node] =
     for
       supervisor <- Supervisor[IO]
       taskRef <- Ref.of[IO, ListSet[Task]](ListSet.empty).toResource
       updatesQ <- Queue.unbounded[IO, Task].toResource
       fibers <- SignallingMapRef
-        .ofSingleImmutableMap[IO, UUID, Fiber[IO, Throwable, Unit]]()
+        .ofSingleImmutableMap[IO, TaskID, Fiber[IO, Throwable, Unit]]()
         .toResource
       _ <-
         val s = fs2.Stream
