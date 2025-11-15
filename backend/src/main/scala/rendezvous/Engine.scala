@@ -34,13 +34,15 @@ object Engine:
 
   def resource(): Resource[IO, Engine] =
 
-    def impl(pubsub: PubSub[NodeID]) =
+    def impl(heartbeats: PubSub[NodeID]) =
       for
         supervisor <- Supervisor[IO]
         hash <- IO.pure(Hash.mmh3()).toResource
         nodesRef <- SignallingRef.of[IO, ListMap[NodeID, Node]](ListMap.empty).toResource
         ranksRef <- SignallingRef.of[IO, Map[Task, Ranking]](Map.empty).toResource
         fibers <- Ref.of[IO, Map[NodeID, Fiber[IO, Throwable, Unit]]](Map.empty).toResource
+        deadTasks <- PubSub[Task].toResource
+        _ <- deadTasks.subscribe.evalMap(task => ranksRef.update(_ - task)).compile.drain.background
       yield new Engine:
 
         def snapshot: IO[ListMap[NodeID, Node]] = nodesRef.get
@@ -72,7 +74,7 @@ object Engine:
           IO.randomUUID.map(NodeID(_)).flatTap: nodeId =>
             Deferred[IO, Node].flatMap: isAlloc =>
               supervisor.supervise:
-                Node.resource(nodeId, maxLife, pubsub).use: node =>
+                Node.resource(nodeId, maxLife, heartbeats, deadTasks).use: node =>
                   isAlloc.complete(node) *> IO.never.as(())
               .flatMap: fib =>
                 fibers.update(_ + (nodeId -> fib))

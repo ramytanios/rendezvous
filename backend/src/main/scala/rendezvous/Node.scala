@@ -28,7 +28,8 @@ object Node:
   def resource(
       nodeId: NodeID,
       maxLife: Option[FiniteDuration] = None,
-      heartbeat: PubSub[NodeID]
+      heartbeat: PubSub[NodeID],
+      deadTasks: PubSub[Task]
   ): Resource[IO, Node] =
     for
       supervisor <- Supervisor[IO]
@@ -58,14 +59,14 @@ object Node:
       def add(task: Task): IO[Unit] =
         supervisor
           .supervise:
-            (
-              Exec.run(task),
-              fs2.Stream
-                .fixedRateStartImmediately[IO](3.seconds)
-                .evalMap(_ => updatesQ.offer(task))
-                .compile
-                .drain
-            ).parTupled.void
+            fs2.Stream.eval(Exec.run(task))
+              .evalMap(_ => taskRef.update(_ - task.id) *> deadTasks.publish(task))
+              .concurrently:
+                fs2.Stream
+                  .fixedRateStartImmediately[IO](3.seconds)
+                  .evalMap(_ => updatesQ.offer(task))
+              .compile
+              .drain
           .flatMap: fib =>
             fibers.getAndSetKeyValue(task.id, fib) <* taskRef.update(_ + (task.id -> task))
           .flatMap(_.foldMapM(_.cancel))
