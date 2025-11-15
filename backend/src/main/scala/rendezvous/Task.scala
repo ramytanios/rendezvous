@@ -12,4 +12,4 @@ enum Work:
 object Exec:
 
   def run(task: Task): IO[Unit] = task.work match
-    case Work.Dummy => IO.sleep(5.seconds)
+    case Work.Dummy => IO.never
