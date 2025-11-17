@@ -1,6 +1,7 @@
 package rendezvous.backend
 
 import cats.effect.IO
+import rendezvous.backend.types.*
 
 case class Task(id: TaskID, work: Work)
 

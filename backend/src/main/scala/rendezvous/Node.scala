@@ -9,6 +9,7 @@ import cats.effect.std.Queue
 import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingMapRef
+import rendezvous.backend.types.*
 
 import scala.collection.immutable.ListMap
 import scala.concurrent.duration.*

@@ -8,6 +8,7 @@ import cats.effect.kernel.Resource
 import cats.effect.std.Supervisor
 import cats.syntax.all.*
 import fs2.concurrent.SignallingRef
+import rendezvous.backend.types.*
 
 import java.time.Duration
 import java.time.Instant

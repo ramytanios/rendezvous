@@ -6,6 +6,7 @@ import cats.effect.std.Queue
 import cats.effect.std.Random
 import cats.syntax.all.*
 import fs2.concurrent.SignallingRef
+import rendezvous.backend.types.*
 import rendezvous.dtos
 
 import scala.concurrent.duration.*

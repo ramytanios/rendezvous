@@ -1,5 +1,7 @@
 package rendezvous.backend
 
+import rendezvous.backend.types.*
+
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Map
 
