@@ -14,8 +14,6 @@ import scala.math.max
 
 object Main extends IOApp.Simple:
 
-  case class HttpServerException(msg: String) extends RuntimeException(msg)
-
   def ws(
       engine: Engine,
       ttdsRef: SignallingRef[IO, Map[NodeID, Long]]
