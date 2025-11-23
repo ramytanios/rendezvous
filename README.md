@@ -12,4 +12,4 @@ Using:
 
 ### Demo:
 
-![](demo.gif)
+<img alt="Demo" src="demo.gif" width="600" />
