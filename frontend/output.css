@@ -1,5 +1,5 @@
 /*! tailwindcss v4.1.17 | MIT License | https://tailwindcss.com */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Orbitron&display=swap");
 @layer properties;
 @layer theme, base, components, utilities;
 @layer theme {
@@ -344,16 +344,16 @@ sl-icon-button::part(base) {
   color: var(--color-red-500);
 }
 sl-card::part(base) {
-  height: 100%;
   width: 100%;
+  height: 100%;
 }
 sl-card::part(header) {
   background-color: var(--color-gray-300);
 }
 sl-card::part(body) {
+  background-color: var(--color-gray-200);
   height: 100%;
   overflow-y: auto;
-  background-color: var(--color-gray-200);
 }
 @property --tw-outline-style {
   syntax: "*";

@@ -18,17 +18,20 @@
 }
 
 sl-icon-button::part(base) {
-  @apply text-red-500;
+  color: var(--color-red-500);
 }
 
 sl-card::part(base) {
-  @apply w-full h-full;
+  width: 100%;
+  height: 100%;
 }
 
 sl-card::part(header) {
-  @apply bg-gray-300;
+  background-color: var(--color-gray-300);
 }
 
 sl-card::part(body) {
-  @apply bg-gray-200 overflow-y-auto h-full;
+  background-color: var(--color-gray-200);
+  height: 100%;
+  overflow-y: auto;
 }
