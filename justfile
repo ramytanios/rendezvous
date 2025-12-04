@@ -77,3 +77,8 @@ serve-frontend:
 [working-directory('frontend')]
 watch-css:
     npx @tailwindcss/cli -i ./input.css -o ./output.css --watch
+
+[unix]
+[working-directory('py-app')]
+py-app:
+    uv run main.py

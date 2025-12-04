@@ -1,24 +1,37 @@
 import asyncio
 import json
 import logging
-from abc import ABC
-from dataclasses import asdict, dataclass
+import re
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import List, Literal, Tuple
-from uuid import UUID
 
 import websockets
 
 WS_URL = "ws://127.0.0.1:8090/api/ws"
 
 
+def pascal_to_snake(name: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+
+
+def convert_keys(d: dict) -> dict:
+    return {pascal_to_snake(k): v for k, v in d.items()}
+
+
 @dataclass
 class Out(ABC):
-    pass
+    @staticmethod
+    @abstractmethod
+    def to_js() -> dict[str, any]:
+        pass
 
 
 @dataclass
 class Ping(Out):
-    pass
+    @staticmethod
+    def to_js() -> dict[str, any]:
+        return {"Ping": {}}
 
 
 @dataclass
@@ -27,11 +40,15 @@ class In(ABC):
 
     @staticmethod
     def from_js(data: dict[str, any]) -> "In":
-        match data.get["type"]:
-            case "Pong":
-                Pong(**data)
-            case "Nodes":
-                Nodes(**data)
+        match data.get("type"):
+            case None:
+                raise Exception(f"missing `type` discriminator in {data}")
+            case t:
+                match globals().get(t):
+                    case None:
+                        raise Exception(f"failed to decode data {data}")
+                    case kls:
+                        return kls(**convert_keys(data))
 
 
 @dataclass
@@ -41,8 +58,21 @@ class Pong(In):
 
 @dataclass
 class Nodes(In):
-    nodes: List[Tuple[UUID, List[UUID]]]
+    nodes: List[Tuple[str, List[str]]]
     type: Literal["Nodes"] = "Nodes"
+
+
+@dataclass
+class Update(In):
+    node_id: str
+    task_id: str
+    type: Literal["Update"] = "Update"
+
+
+@dataclass
+class Ttds(In):
+    ttds: dict[str, int]
+    type: Literal["Ttds"] = "Ttds"
 
 
 async def main_async():
@@ -57,13 +87,13 @@ async def main_async():
                 try:
                     await q_out.put(Ping())
                 except Exception as e:
-                    logging.warning(f"sending heartbeat failed: {e}")
+                    logger.warning(f"sending heartbeat failed: {e}")
                 await asyncio.sleep(3)
 
         async def send_loop():
             while True:
                 msg = await q_out.get()
-                await ws.send(json.dumps(asdict(msg)))
+                await ws.send(json.dumps(msg.to_js()))
 
         async def recv_loop():
             async for msg in ws:
@@ -77,7 +107,7 @@ async def main_async():
         async def log_messages():
             while True:
                 msg = await q_in.get()
-                logger.info(asdict(msg))
+                logger.warning(msg)
 
         try:
             async with asyncio.TaskGroup() as tg:
