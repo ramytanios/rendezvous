@@ -21,7 +21,6 @@ def convert_keys(d: dict) -> dict:
 
 @dataclass
 class Out(ABC):
-    @staticmethod
     @abstractmethod
     def to_js() -> dict[str, any]:
         pass
@@ -29,9 +28,28 @@ class Out(ABC):
 
 @dataclass
 class Ping(Out):
-    @staticmethod
     def to_js() -> dict[str, any]:
         return {"Ping": {}}
+
+
+@dataclass
+class AddNode(Out):
+    def to_js() -> dict[str, any]:
+        return {"AddNode": {}}
+
+
+@dataclass
+class AddTask(Out):
+    def to_js() -> dict[str, any]:
+        return {"AddTask": {}}
+
+
+@dataclass
+class RemoveNode(Out):
+    node_id: str
+
+    def to_js(self) -> dict[str, any]:
+        return {"RemoveNode": {"nodeId": self.node_id}}
 
 
 @dataclass
