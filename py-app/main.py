@@ -58,7 +58,7 @@ async def main_async():
                     await q_out.put(Ping())
                 except Exception as e:
                     logging.warning(f"sending heartbeat failed: {e}")
-                asyncio.sleep(3)
+                await asyncio.sleep(3)
 
         async def send_loop():
             while True:
