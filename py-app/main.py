@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from typing import List, Literal, Tuple
 
 import websockets
-from loguru import logger
+from textual import log, work
+from textual.app import App, ComposeResult
+from textual.containers import HorizontalGroup
+from textual.widgets import Button, Footer, Header
 
 WS_URL = "ws://127.0.0.1:8090/api/ws"
 
@@ -81,6 +84,12 @@ class Nodes(In):
 
 
 @dataclass
+class NodeAdded(In):
+    node_id: str
+    type: Literal["NodeAdded"] = "NodeAdded"
+
+
+@dataclass
 class Update(In):
     node_id: str
     task_id: str
@@ -93,22 +102,26 @@ class Ttds(In):
     type: Literal["Ttds"] = "Ttds"
 
 
-async def main_async():
+# queues
+q_out = asyncio.Queue[Out]()
+q_in = asyncio.Queue[In]()
+
+
+async def ws_async() -> None:
     async with websockets.connect(WS_URL) as ws:
-        q_out = asyncio.Queue[Out]()
-        q_in = asyncio.Queue[In]()
 
         async def send_heartbeat():
             while True:
                 try:
                     await q_out.put(Ping())
                 except Exception as e:
-                    logger.warning(f"sending heartbeat failed: {e}")
+                    log.warning(f"sending heartbeat failed: {e}")
                 await asyncio.sleep(3)
 
         async def send_loop():
             while True:
                 msg = await q_out.get()
+                log.info(f"sent ws message: {msg}")
                 await ws.send(json.dumps(msg.to_js()))
 
         async def recv_loop():
@@ -118,12 +131,12 @@ async def main_async():
                     in_msg = In.from_js(js)
                     await q_in.put(in_msg)
                 except Exception as e:
-                    logger.warn(f"failed to decode {msg}: {e}")
+                    log.warning(f"failed to decode {msg}: {e}")
 
         async def log_messages():
             while True:
                 msg = await q_in.get()
-                logger.warn(msg)
+                log.info(f"received ws message: {msg}")
 
         try:
             async with asyncio.TaskGroup() as tg:
@@ -132,8 +145,61 @@ async def main_async():
                 tg.create_task(recv_loop())
                 tg.create_task(log_messages())
         except* Exception as e:
-            logger.error(f"WS connection failed in task group: ${e.exceptions}")
+            log.error(f"WS connection failed in task group: ${e.exceptions}")
+
+
+class Control(HorizontalGroup):
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "add_node":
+            self.add_node()
+        elif event.button.id == "add_task":
+            self.add_task()
+
+    @work(exclusive=True)
+    async def add_node(self) -> None:
+        await q_out.put(AddNode())
+
+    @work(exclusive=True)
+    async def add_task(self) -> None:
+        await q_out.put(AddTask())
+
+    def compose(self) -> None:
+        yield Button("Add Node", id="add_node", variant="primary", flat=True)
+        yield Button("Add Task", id="add_task", variant="primary", flat=True)
+
+
+class RendezVous(App):
+    BINDINGS = [
+        ("d", "toggle_dark", "Toggle dark mode"),
+        ("n", "add_node", "Add node"),
+        ("t", "add_task", "Add task"),
+        ("q", "quit", "Quit"),
+    ]
+    CSS_PATH = "styles.tcss"
+
+    async def on_mount(self) -> None:
+        self.log("starting websocket connection in the background ..")
+        self.run_worker(ws_async())
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Footer()
+        yield Control()
+
+    def action_add_node(self) -> None:
+        button = self.query_one("#add_node", Button)
+        button.press()
+
+    def action_add_task(self) -> None:
+        button = self.query_one("#add_task", Button)
+        button.press()
+
+    def action_toggle_dark(self) -> None:
+        self.theme = (
+            "textual-dark" if self.theme == "textual-light" else "textual-light"
+        )
 
 
 if __name__ == "__main__":
-    asyncio.run(main_async())
+    app = RendezVous()
+    app.run()

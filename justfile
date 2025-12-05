@@ -80,5 +80,15 @@ watch-css:
 
 [unix]
 [working-directory('py-app')]
-py-app:
+tui:
     uv run main.py
+
+[unix]
+[working-directory('py-app')]
+dev-tui:
+    uv run textual run --dev main.py
+
+[unix]
+[working-directory('py-app')]
+console-tui:
+    uv run textual console
