@@ -1,12 +1,12 @@
 import asyncio
 import json
-from loguru import logger
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Literal, Tuple
 
 import websockets
+from loguru import logger
 
 WS_URL = "ws://127.0.0.1:8090/api/ws"
 
@@ -94,7 +94,6 @@ class Ttds(In):
 
 
 async def main_async():
-
     async with websockets.connect(WS_URL) as ws:
         q_out = asyncio.Queue[Out]()
         q_in = asyncio.Queue[In]()
@@ -116,8 +115,8 @@ async def main_async():
             async for msg in ws:
                 try:
                     js = json.loads(msg)
-                    out = In.from_js(js)
-                    await q_in.put(out)
+                    in_msg = In.from_js(js)
+                    await q_in.put(in_msg)
                 except Exception as e:
                     logger.warn(f"failed to decode {msg}: {e}")
 
