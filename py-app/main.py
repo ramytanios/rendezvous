@@ -1,6 +1,6 @@
 import asyncio
 import json
-import logging
+from loguru import logger
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -22,25 +22,25 @@ def convert_keys(d: dict) -> dict:
 @dataclass
 class Out(ABC):
     @abstractmethod
-    def to_js() -> dict[str, any]:
+    def to_js(self) -> dict[str, any]:
         pass
 
 
 @dataclass
 class Ping(Out):
-    def to_js() -> dict[str, any]:
+    def to_js(self) -> dict[str, any]:
         return {"Ping": {}}
 
 
 @dataclass
 class AddNode(Out):
-    def to_js() -> dict[str, any]:
+    def to_js(self) -> dict[str, any]:
         return {"AddNode": {}}
 
 
 @dataclass
 class AddTask(Out):
-    def to_js() -> dict[str, any]:
+    def to_js(self) -> dict[str, any]:
         return {"AddTask": {}}
 
 
@@ -94,7 +94,6 @@ class Ttds(In):
 
 
 async def main_async():
-    logger = logging.getLogger(__name__)
 
     async with websockets.connect(WS_URL) as ws:
         q_out = asyncio.Queue[Out]()
@@ -120,12 +119,12 @@ async def main_async():
                     out = In.from_js(js)
                     await q_in.put(out)
                 except Exception as e:
-                    logger.warning(f"failed to decode {msg}: {e}")
+                    logger.warn(f"failed to decode {msg}: {e}")
 
         async def log_messages():
             while True:
                 msg = await q_in.get()
-                logger.warning(msg)
+                logger.warn(msg)
 
         try:
             async with asyncio.TaskGroup() as tg:
@@ -134,7 +133,7 @@ async def main_async():
                 tg.create_task(recv_loop())
                 tg.create_task(log_messages())
         except* Exception as e:
-            logger.info(f"WS connection failed in task group: ${e.exceptions}")
+            logger.error(f"WS connection failed in task group: ${e.exceptions}")
 
 
 if __name__ == "__main__":
