@@ -1,8 +1,0 @@
-Control {
-    margin: 1;
-    padding: 1;
-    align: center middle;
-    height: auto;
-    min-width: 50;
-}
-

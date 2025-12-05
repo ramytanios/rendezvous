@@ -79,16 +79,16 @@ watch-css:
     npx @tailwindcss/cli -i ./input.css -o ./output.css --watch
 
 [unix]
-[working-directory('py-app')]
+[working-directory('tui')]
 tui:
     uv run main.py
 
 [unix]
-[working-directory('py-app')]
+[working-directory('tui')]
 dev-tui:
     uv run textual run --dev main.py
 
 [unix]
-[working-directory('py-app')]
+[working-directory('tui')]
 console-tui:
     uv run textual console

@@ -107,6 +107,19 @@ q_out = asyncio.Queue[Out]()
 q_in = asyncio.Queue[In]()
 
 
+class NodesAsync:
+    def __init__(self):
+        self._cache: dict[str, List[str]] = {}
+        self._lock: asyncio.Lock = asyncio.Lock()
+
+    async def replace(self, nodes: dict[str, List[str]]) -> None:
+        async with self._lock:
+            self._cache = nodes
+
+
+nodes = NodesAsync()
+
+
 async def ws_async() -> None:
     async with websockets.connect(WS_URL) as ws:
 
@@ -136,6 +149,9 @@ async def ws_async() -> None:
         async def log_messages():
             while True:
                 msg = await q_in.get()
+                match msg:
+                    case Nodes(ns, _):
+                        await nodes.replace(ns)
                 log.info(f"received ws message: {msg}")
 
         try:
