@@ -9,7 +9,8 @@ import websockets
 from textual import log, work
 from textual.app import App, ComposeResult
 from textual.containers import HorizontalGroup
-from textual.widgets import Button, Footer, Header
+from textual.reactive import reactive
+from textual.widgets import Button, Footer, Header, Label, ListItem, ListView
 
 WS_URL = "ws://127.0.0.1:8090/api/ws"
 
@@ -107,19 +108,6 @@ q_out = asyncio.Queue[Out]()
 q_in = asyncio.Queue[In]()
 
 
-class NodesAsync:
-    def __init__(self):
-        self._cache: dict[str, List[str]] = {}
-        self._lock: asyncio.Lock = asyncio.Lock()
-
-    async def replace(self, nodes: dict[str, List[str]]) -> None:
-        async with self._lock:
-            self._cache = nodes
-
-
-nodes = NodesAsync()
-
-
 async def ws_async() -> None:
     async with websockets.connect(WS_URL) as ws:
 
@@ -149,9 +137,6 @@ async def ws_async() -> None:
         async def log_messages():
             while True:
                 msg = await q_in.get()
-                match msg:
-                    case Nodes(ns, _):
-                        await nodes.replace(ns)
                 log.info(f"received ws message: {msg}")
 
         try:
@@ -159,7 +144,6 @@ async def ws_async() -> None:
                 tg.create_task(send_heartbeat())
                 tg.create_task(send_loop())
                 tg.create_task(recv_loop())
-                tg.create_task(log_messages())
         except* Exception as e:
             log.error(f"WS connection failed in task group: ${e.exceptions}")
 
@@ -184,6 +168,20 @@ class Control(HorizontalGroup):
         yield Button("Add Task", id="add_task", variant="primary", flat=True)
 
 
+class Monitor(HorizontalGroup):
+    content: reactive[List[Tuple[str, List[str]]] | None] = reactive(
+        None, recompose=True
+    )
+
+    def compose(self) -> ComposeResult:
+        match self.content:
+            case None:
+                pass
+            case d:
+                items = [ListItem(Label(node_id)) for node_id, _ in d]
+                yield ListView(*items)
+
+
 class RendezVous(App):
     BINDINGS = [
         ("d", "toggle_dark", "Toggle dark mode"),
@@ -193,14 +191,24 @@ class RendezVous(App):
     ]
     CSS_PATH = "styles.tcss"
 
+    async def update_nodes_async(self) -> None:
+        lock = asyncio.Lock()
+        while True:
+            msg = await q_in.get()
+            match msg:
+                case Nodes(nodes, _):
+                    async with lock:
+                        self.query_one(Monitor).content = nodes
+
     async def on_mount(self) -> None:
-        self.log("starting websocket connection in the background ..")
         self.run_worker(ws_async())
+        self.run_worker(self.update_nodes_async())
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Footer()
         yield Control()
+        yield Monitor()
+        yield Footer()
 
     def action_add_node(self) -> None:
         button = self.query_one("#add_node", Button)

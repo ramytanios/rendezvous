@@ -525,23 +525,6 @@ wheels = [
 ]
 
 [[package]]
-name = "py-app"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "textual" },
-    { name = "textual-dev" },
-    { name = "websockets" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "textual", specifier = ">=6.7.1" },
-    { name = "textual-dev", specifier = ">=1.8.0" },
-    { name = "websockets", specifier = ">=15.0.1" },
-]
-
-[[package]]
 name = "pygments"
 version = "2.19.2"
 source = { registry = "https://pypi.org/simple" }
@@ -611,6 +594,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c2/7e/62fecc552853ec6a178cb1faa2d6f73b34d5512924770e7b08b58ff14148/textual_serve-1.1.3.tar.gz", hash = "sha256:f8f636ae2f5fd651b79d965473c3e9383d3521cdf896f9bc289709185da3f683", size = 448340, upload-time = "2025-11-01T16:22:36.723Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b5/fe/108e7773349d500cf363328c3d0b7123e03feda51e310a3a5b136ac8ca71/textual_serve-1.1.3-py3-none-any.whl", hash = "sha256:207a472bc6604e725b1adab4ab8bf12f4c4dc25b04eea31e4d04731d8bf30f18", size = 447339, upload-time = "2025-11-01T16:22:35.209Z" },
+]
+
+[[package]]
+name = "tui"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "textual" },
+    { name = "textual-dev" },
+    { name = "websockets" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "textual", specifier = ">=6.7.1" },
+    { name = "textual-dev", specifier = ">=1.8.0" },
+    { name = "websockets", specifier = ">=15.0.1" },
 ]
 
 [[package]]
