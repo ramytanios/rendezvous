@@ -1,3 +1,7 @@
+Screen {
+    scrollbar-size: 1 1;
+}
+
 Control {
     align: center middle;
 }
@@ -5,4 +9,59 @@ Control {
 Control * > {
     margin: 0 1;
     padding: 0 1;
+}
+
+Node {
+    border: ascii $primary ;
+}
+
+Monitor {
+   layout: grid;
+   grid-size: 4;            
+   grid-gutter: 2;        
+   grid-rows: 10;
+   padding: 1;
+}
+
+.node-header {
+    text-style: bold italic;
+    background: $surface;
+    border-bottom: ascii $accent;
+}
+
+.node-body {
+    scrollbar-size: 1 1;
+}
+
+Switch {
+  position: absolute;
+  offset: 1 1;
+}
+
+.health {
+  text-style: italic bold;
+}
+
+.ok {
+  color: $surface;
+  background: $success;
+}
+
+.not {
+  color: $surface;
+  background: $error;
+}
+
+Horizontal#footer-outer {
+   height: 1;
+   dock: bottom;
+}
+
+Horizonal#footer-inner {
+   width: 90%;
+}
+
+Label#right-label {
+   width: 10%;
+   text-align: center;
 }

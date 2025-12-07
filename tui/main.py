@@ -8,9 +8,15 @@ from typing import List, Literal, Tuple
 import websockets
 from textual import log, work
 from textual.app import App, ComposeResult
-from textual.containers import HorizontalGroup
+from textual.containers import (
+    Horizontal,
+    HorizontalGroup,
+    ScrollableContainer,
+    VerticalGroup,
+)
 from textual.reactive import reactive
-from textual.widgets import Button, Footer, Header, Label, ListItem, ListView
+from textual.widgets import Button, Footer, Header, Label, Static
+from textual.worker import Worker, WorkerState
 
 WS_URL = "ws://127.0.0.1:8090/api/ws"
 
@@ -21,6 +27,10 @@ def pascal_to_snake(name: str) -> str:
 
 def convert_keys(d: dict) -> dict:
     return {pascal_to_snake(k): v for k, v in d.items()}
+
+
+def show_uuid(uuid: str) -> str:
+    return uuid.split("-")[0]
 
 
 @dataclass
@@ -134,11 +144,6 @@ async def ws_async() -> None:
                 except Exception as e:
                     log.warning(f"failed to decode {msg}: {e}")
 
-        async def log_messages():
-            while True:
-                msg = await q_in.get()
-                log.info(f"received ws message: {msg}")
-
         try:
             async with asyncio.TaskGroup() as tg:
                 tg.create_task(send_heartbeat())
@@ -168,9 +173,21 @@ class Control(HorizontalGroup):
         yield Button("Add Task", id="add_task", variant="primary", flat=True)
 
 
+class Node(VerticalGroup):
+    def __init__(self, node: str, tasks: List[str]):
+        super().__init__()
+        self._node = node
+        self._tasks = tasks
+
+    def compose(self) -> ComposeResult:
+        yield Static(show_uuid(self._node), classes="node-header")
+        tasks = [Static(show_uuid(task)) for task in self._tasks]
+        yield ScrollableContainer(*tasks, classes="node-body")
+
+
 class Monitor(HorizontalGroup):
     content: reactive[List[Tuple[str, List[str]]] | None] = reactive(
-        None, recompose=True
+        None, recompose=True, layout=True
     )
 
     def compose(self) -> ComposeResult:
@@ -178,8 +195,8 @@ class Monitor(HorizontalGroup):
             case None:
                 pass
             case d:
-                items = [ListItem(Label(node_id)) for node_id, _ in d]
-                yield ListView(*items)
+                for node, tasks in d:
+                    yield Node(node, tasks)
 
 
 class RendezVous(App):
@@ -191,6 +208,8 @@ class RendezVous(App):
     ]
     CSS_PATH = "styles.tcss"
 
+    is_app_healthy = reactive(True, layout=True, recompose=True)
+
     async def update_nodes_async(self) -> None:
         lock = asyncio.Lock()
         while True:
@@ -201,14 +220,23 @@ class RendezVous(App):
                         self.query_one(Monitor).content = nodes
 
     async def on_mount(self) -> None:
-        self.run_worker(ws_async())
+        self.run_worker(ws_async(), exit_on_error=False)
         self.run_worker(self.update_nodes_async())
 
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.state == WorkerState.ERROR:
+            self.is_app_healthy = False
+
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield Header(show_clock=True)
         yield Control()
         yield Monitor()
-        yield Footer()
+        with Horizontal(id="footer-outer"):
+            with Horizontal(id="footer-inner"):
+                yield Footer()
+            label = "OK" if self.is_app_healthy else "NO OK"
+            classes = "health ok" if self.is_app_healthy else "health not"
+            yield Label(label, id="right-label", classes=classes)
 
     def action_add_node(self) -> None:
         button = self.query_one("#add_node", Button)
