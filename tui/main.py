@@ -208,7 +208,7 @@ class RendezVous(App):
     ]
     CSS_PATH = "styles.tcss"
 
-    is_app_healthy = reactive(True, layout=True, recompose=True)
+    is_app_healthy = reactive(False)
 
     async def update_nodes_async(self) -> None:
         lock = asyncio.Lock()
@@ -220,23 +220,28 @@ class RendezVous(App):
                         self.query_one(Monitor).content = nodes
 
     async def on_mount(self) -> None:
-        self.run_worker(ws_async(), exit_on_error=False)
-        self.run_worker(self.update_nodes_async())
+        self.run_worker(ws_async(), exit_on_error=False, name="ws_async")
+        self.run_worker(self.update_nodes_async(), name="update_nodes_async")
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        if event.state == WorkerState.ERROR:
-            self.is_app_healthy = False
+        match event.worker.state:
+            case WorkerState.RUNNING:
+                self.is_app_healthy = True
+            case _:
+                self.is_app_healthy = False
+
+    def watch_is_app_healthy(self, is_healthy: bool) -> None:
+        label = self.query_one("#right-label", Label)
+        label.content = "OK" if is_healthy else "NOT OK"
+        label.classes = "health ok" if is_healthy else "health not"
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Control()
         yield Monitor()
         with Horizontal(id="footer-outer"):
-            with Horizontal(id="footer-inner"):
-                yield Footer()
-            label = "OK" if self.is_app_healthy else "NO OK"
-            classes = "health ok" if self.is_app_healthy else "health not"
-            yield Label(label, id="right-label", classes=classes)
+            yield Horizontal(Footer(), id="footer-inner")
+            yield Label("NOT OK", id="right-label", classes="health not")
 
     def action_add_node(self) -> None:
         button = self.query_one("#add_node", Button)
