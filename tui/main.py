@@ -14,7 +14,9 @@ from textual.containers import (
     ScrollableContainer,
     VerticalGroup,
 )
+from textual.events import Click
 from textual.reactive import reactive
+from textual.widget import Widget
 from textual.widgets import Button, Footer, Header, Label, Static
 from textual.worker import Worker, WorkerState
 
@@ -155,9 +157,9 @@ async def ws_async() -> None:
 
 class Control(HorizontalGroup):
     async def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add_node":
+        if event.button.id == "add-node":
             self.add_node()
-        elif event.button.id == "add_task":
+        elif event.button.id == "add-task":
             self.add_task()
 
     @work(exclusive=True)
@@ -169,8 +171,8 @@ class Control(HorizontalGroup):
         await q_out.put(AddTask())
 
     def compose(self) -> None:
-        yield Button("Add Node", id="add_node", variant="primary", flat=True)
-        yield Button("Add Task", id="add_task", variant="primary", flat=True)
+        yield Button("Add Node", id="add-node", variant="default", flat=True)
+        yield Button("Add Task", id="add-task", variant="default", flat=True)
 
 
 class Node(VerticalGroup):
@@ -179,8 +181,28 @@ class Node(VerticalGroup):
         self._node = node
         self._tasks = tasks
 
+    class X(Widget):
+        def __init__(self, node: "Node", *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.node = node
+
+        def compose(self) -> ComposeResult:
+            yield Label("✖", classes="node-x")
+
+        async def on_click(self, event: Click) -> None:
+            self.node.remove_node()
+
+    @work(exclusive=True)
+    async def remove_node(self) -> None:
+        await q_out.put(RemoveNode(self._node))
+
     def compose(self) -> ComposeResult:
-        yield Static(show_uuid(self._node), classes="node-header")
+        with Horizontal(id="node-footer-outer"):
+            yield Horizontal(
+                Static(show_uuid(self._node), classes="node-header"),
+                id="node-footer-inner",
+            )
+            yield self.X(self)
         tasks = [Static(show_uuid(task)) for task in self._tasks]
         yield ScrollableContainer(*tasks, classes="node-body")
 
@@ -210,6 +232,9 @@ class RendezVous(App):
 
     is_app_healthy = reactive(False)
 
+    THEME_LIGHT = "catppuccin-latte"
+    THEME_DARK = "catppuccin-mocha"
+
     async def update_nodes_async(self) -> None:
         lock = asyncio.Lock()
         while True:
@@ -220,8 +245,9 @@ class RendezVous(App):
                         self.query_one(Monitor).content = nodes
 
     async def on_mount(self) -> None:
-        self.run_worker(ws_async(), exit_on_error=False, name="ws_async")
-        self.run_worker(self.update_nodes_async(), name="update_nodes_async")
+        self.theme = self.THEME_DARK
+        self.run_worker(ws_async(), exit_on_error=False)
+        self.run_worker(self.update_nodes_async())
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         match event.worker.state:
@@ -244,16 +270,16 @@ class RendezVous(App):
             yield Label("NOT OK", id="right-label", classes="health not")
 
     def action_add_node(self) -> None:
-        button = self.query_one("#add_node", Button)
+        button = self.query_one("#add-node", Button)
         button.press()
 
     def action_add_task(self) -> None:
-        button = self.query_one("#add_task", Button)
+        button = self.query_one("#add-task", Button)
         button.press()
 
     def action_toggle_dark(self) -> None:
         self.theme = (
-            "textual-dark" if self.theme == "textual-light" else "textual-light"
+            self.THEME_LIGHT if self.theme == self.THEME_DARK else self.THEME_DARK
         )
 
 

@@ -23,11 +23,6 @@ Monitor {
    padding: 1;
 }
 
-.node-header {
-    text-style: bold italic;
-    background: $surface;
-    border-bottom: ascii $accent;
-}
 
 .node-body {
     scrollbar-size: 1 1;
@@ -39,16 +34,15 @@ Switch {
 }
 
 .health {
+  color: $surface;
   text-style: italic bold;
 }
 
 .ok {
-  color: $surface;
   background: $success;
 }
 
 .not {
-  color: $surface;
   background: $error;
 }
 
@@ -57,11 +51,27 @@ Horizontal#footer-outer {
    dock: bottom;
 }
 
-Horizonal#footer-inner {
+Horizontal#footer-inner {
    width: 90%;
 }
 
 Label#right-label {
    width: 10%;
    text-align: center;
+}
+
+Horizontal#node-footer-outer {
+   height: 2;
+   text-style: bold italic;
+   background: $surface;
+   border-bottom: ascii $accent;
+}
+
+Horizontal#node-footer-inner {
+   width: 90%;
+}
+
+.node-x {
+    width: 10%;
+    color: $error-darken-3;
 }
