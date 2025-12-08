@@ -13,7 +13,6 @@ Control * > {
 
 Node {
     background: $boost-lighten-3;
-    outline: round $accent;
 }
 
 Monitor {
@@ -74,4 +73,10 @@ Horizontal#node-footer-inner {
 .node-x {
     width: 10%;
     color: $error-darken-3;
+}
+
+ScrollableContainer {
+    &:focus {
+      color: $warning
+    }
 }

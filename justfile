@@ -73,3 +73,7 @@ dev-tui:
 [working-directory('tui')]
 console-tui:
     uv run textual console
+
+[working-directory('tui')]
+serve-tui:
+    uv run server.py

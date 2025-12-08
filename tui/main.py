@@ -103,6 +103,12 @@ class NodeAdded(In):
 
 
 @dataclass
+class NodeRemoved(In):
+    node_id: str
+    type: Literal["NodeRemoved"] = "NodeRemoved"
+
+
+@dataclass
 class Update(In):
     node_id: str
     task_id: str
@@ -176,25 +182,30 @@ class Control(HorizontalGroup):
 
 
 class Node(VerticalGroup):
+    BINDINGS = [("backspace", "remove_node", "Delete")]
+
     def __init__(self, node: str, tasks: List[str]):
         super().__init__()
         self._node = node
         self._tasks = tasks
 
+    async def action_remove_node(self) -> None:
+        self.remove_node()
+
+    @work(exclusive=True)
+    async def remove_node(self) -> None:
+        await q_out.put(RemoveNode(self._node))
+
     class X(Widget):
         def __init__(self, node: "Node", *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.node = node
+            self._node = node
 
         def compose(self) -> ComposeResult:
             yield Label("✖", classes="node-x")
 
         async def on_click(self, event: Click) -> None:
-            self.node.remove_node()
-
-    @work(exclusive=True)
-    async def remove_node(self) -> None:
-        await q_out.put(RemoveNode(self._node))
+            self._node.remove_node()
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="node-footer-outer"):
@@ -204,7 +215,7 @@ class Node(VerticalGroup):
             )
             yield self.X(self)
         tasks = [Static(show_uuid(task)) for task in self._tasks]
-        yield ScrollableContainer(*tasks, classes="node-body")
+        yield ScrollableContainer(*tasks, can_focus=True, classes="node-body")
 
 
 class Monitor(HorizontalGroup):
