@@ -7,6 +7,7 @@ from typing import List, Literal, Tuple
 
 import websockets
 from textual import log, work
+from textual._on import on
 from textual.app import App, ComposeResult
 from textual.containers import (
     Horizontal,
@@ -162,16 +163,12 @@ async def ws_async() -> None:
 
 
 class Control(HorizontalGroup):
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add-node":
-            self.add_node()
-        elif event.button.id == "add-task":
-            self.add_task()
-
+    @on(Button.Pressed, "#add-node")
     @work(exclusive=True)
     async def add_node(self) -> None:
         await q_out.put(AddNode())
 
+    @on(Button.Pressed, "#add-task")
     @work(exclusive=True)
     async def add_task(self) -> None:
         await q_out.put(AddTask())
