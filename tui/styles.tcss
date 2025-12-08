@@ -12,7 +12,8 @@ Control * > {
 }
 
 Node {
-    border: ascii $primary ;
+    background: $boost-lighten-3;
+    outline: round $accent;
 }
 
 Monitor {
@@ -61,10 +62,9 @@ Label#right-label {
 }
 
 Horizontal#node-footer-outer {
-   height: 2;
+   height: 1;
    text-style: bold italic;
    background: $surface;
-   border-bottom: ascii $accent;
 }
 
 Horizontal#node-footer-inner {

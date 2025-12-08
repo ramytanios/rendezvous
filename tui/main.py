@@ -62,10 +62,10 @@ class AddTask(Out):
 
 @dataclass
 class RemoveNode(Out):
-    node_id: str
+    id: str
 
     def to_js(self) -> dict[str, any]:
-        return {"RemoveNode": {"nodeId": self.node_id}}
+        return {"RemoveNode": {"id": self.id}}
 
 
 @dataclass
