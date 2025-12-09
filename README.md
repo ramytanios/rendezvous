@@ -14,8 +14,8 @@ Python TUI:
 
 - [textual](https://textual.textualize.io)
 
-### Scala app demo:
+### Scala web app:
 <img alt="Demo" src="demo.gif" width="600" />
 
-### Python TUI demo:
+### Python TUI:
 <img alt="Demo" src="./tui/tui.gif" width="600" />
