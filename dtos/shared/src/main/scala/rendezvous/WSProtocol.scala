@@ -1,6 +1,8 @@
 package rendezvous.dtos
 
 import io.circe.Codec
+import io.circe.derivation.Configuration
+import io.circe.derivation.ConfiguredCodec
 import io.circe.generic.semiauto.*
 
 import java.util.UUID
@@ -16,7 +18,10 @@ object WSProtocol:
   object Client:
     given Codec[Client] = deriveCodec[Client]
 
-  enum Server:
+  object Server:
+    given Configuration = Configuration.default.withDiscriminator("type")
+
+  enum Server derives ConfiguredCodec:
     case Pong
     case Nodes(nodes: List[(UUID, List[UUID])])
     case Update(nodeId: UUID, taskId: UUID)
@@ -26,5 +31,3 @@ object WSProtocol:
     case Ttds(ttds: Map[UUID, Long])
     case NoNodesAvailable
 
-  object Server:
-    given Codec[Server] = deriveCodec[Server]

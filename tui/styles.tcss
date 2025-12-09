@@ -1,0 +1,82 @@
+Screen {
+    scrollbar-size: 1 1;
+}
+
+Control {
+    align: center middle;
+}
+
+Control * > {
+    margin: 0 1;
+    padding: 0 1;
+}
+
+Node {
+    background: $boost-lighten-3;
+}
+
+Monitor {
+   layout: grid;
+   grid-size: 4;            
+   grid-gutter: 2;        
+   grid-rows: 10;
+   padding: 1;
+}
+
+
+.node-body {
+    scrollbar-size: 1 1;
+}
+
+Switch {
+  position: absolute;
+  offset: 1 1;
+}
+
+.health {
+  color: $surface;
+  text-style: italic bold;
+}
+
+.ok {
+  background: $success;
+}
+
+.not {
+  background: $error;
+}
+
+Horizontal#footer-outer {
+   height: 1;
+   dock: bottom;
+}
+
+Horizontal#footer-inner {
+   width: 90%;
+}
+
+Label#right-label {
+   width: 10%;
+   text-align: center;
+}
+
+Horizontal#node-footer-outer {
+   height: 1;
+   text-style: bold italic;
+   background: $surface;
+}
+
+Horizontal#node-footer-inner {
+   width: 90%;
+}
+
+.node-x {
+    width: 10%;
+    color: $error-darken-3;
+}
+
+ScrollableContainer {
+    &:focus {
+      color: $warning
+    }
+}
