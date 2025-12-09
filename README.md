@@ -18,4 +18,4 @@ Python TUI:
 <img alt="Demo" src="demo.gif" width="600" />
 
 ### Python TUI demo:
-<img alt="Demo" src="tui.gif" width="600" />
+<img alt="Demo" src="./tui/tui.gif" width="600" />

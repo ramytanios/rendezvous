@@ -21,3 +21,4 @@ node_modules
 .devenv/
 
 todo.md
+.DS_Store
