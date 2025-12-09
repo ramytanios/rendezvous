@@ -178,6 +178,43 @@ class Control(HorizontalGroup):
         yield Button("Add Task", id="add-task", variant="default", flat=True)
 
 
+class X(Widget):
+    def __init__(self, node: "Node", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._node = node
+
+    def compose(self) -> ComposeResult:
+        yield Label("✖", classes="node-x")
+
+    async def on_click(self, event: Click) -> None:
+        self._node.remove_node()
+
+
+class Prompt(Widget):
+    def __init__(self, node: "Node", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._node = node
+
+    is_open = reactive(False)
+    # node_id = reactive(?)
+
+    @on(Button.Pressed, "#prompt-yes")
+    @work(exclusive=True)
+    async def prompt_yes(self) -> None:
+        await self._node.remove_node()
+        self.is_open = False
+
+    @on(Button.Pressed, "#prompt-no")
+    def prompt_no(self) -> None:
+        self.is_open = False
+
+    def compose(self) -> ComposeResult:
+        yield Label(f"Are you sure to remove node {show_uuid(self._node._node)}")
+        with Horizontal():
+            yield Button("YES", id="prompt-yes", variant="default", flat=True)
+            yield Button("NO", id="prompt-no", variance="default", flat=True)
+
+
 class Node(VerticalGroup):
     BINDINGS = [("backspace", "remove_node", "Delete")]
 
@@ -193,24 +230,13 @@ class Node(VerticalGroup):
     async def remove_node(self) -> None:
         await q_out.put(RemoveNode(self._node))
 
-    class X(Widget):
-        def __init__(self, node: "Node", *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self._node = node
-
-        def compose(self) -> ComposeResult:
-            yield Label("✖", classes="node-x")
-
-        async def on_click(self, event: Click) -> None:
-            self._node.remove_node()
-
     def compose(self) -> ComposeResult:
         with Horizontal(id="node-footer-outer"):
             yield Horizontal(
                 Static(show_uuid(self._node), classes="node-header"),
                 id="node-footer-inner",
             )
-            yield self.X(self)
+            yield X(self)
         tasks = [Static(show_uuid(task)) for task in self._tasks]
         yield ScrollableContainer(*tasks, can_focus=True, classes="node-body")
 
