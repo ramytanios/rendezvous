@@ -1,6 +1,6 @@
 # Rendezvous Hashing
 
-An implementation of the [Rendezvous Hashing](https://en.wikipedia.org/wiki/Rendezvous_hashing) algorithm with an illustrative GUI 🤓
+An implementation of the [Rendezvous Hashing](https://en.wikipedia.org/wiki/Rendezvous_hashing) algorithm.
 
 Using:
 
@@ -10,6 +10,12 @@ Using:
 - [ff4s-shoelace](https://github.com/buntec/ff4s-shoelace)
 - [ff4s-heroicons](https://github.com/buntec/ff4s-heroicons)
 
-### Demo:
+Python TUI:
 
+- [textual](https://textual.textualize.io)
+
+### Scala app demo:
 <img alt="Demo" src="demo.gif" width="600" />
+
+### Python TUI demo:
+<img alt="Demo" src="tui.gif" width="600" />
