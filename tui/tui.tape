@@ -1,5 +1,7 @@
 Output tui.gif
 
+Set Theme "Catppuccin Frappe"
+
 Set Shell "bash"
 Set FontSize 20
 Set Width 1200
