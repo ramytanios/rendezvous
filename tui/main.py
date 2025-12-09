@@ -15,7 +15,7 @@ from textual.containers import (
     ScrollableContainer,
     VerticalGroup,
 )
-from textual.events import Click
+from textual.events import Click, Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Button, Footer, Header, Label, Static
@@ -178,31 +178,66 @@ class Control(HorizontalGroup):
         yield Button("Add Task", id="add-task", variant="default", flat=True)
 
 
-class Node(VerticalGroup):
-    BINDINGS = [("backspace", "remove_node", "Delete")]
+class X(Widget):
+    def __init__(self, node: "Node", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._node = node
 
+    def compose(self) -> ComposeResult:
+        yield Label("✖", classes="node-x")
+
+    async def on_click(self, event: Click) -> None:
+        self._node.remove_node()
+
+
+class Prompt(VerticalGroup):
+    def __init__(self, node_id: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._node = node_id
+
+    class Closed(Message):
+        pass
+
+    BINDINGS = [("Y", "yes", "YES"), ("N", "no", "NO")]
+
+    async def action_yes(self) -> None:
+        self.prompt_yes()
+
+    async def action_no(self) -> None:
+        self.prompt_no()
+
+    @on(Button.Pressed, "#prompt-yes")
+    @work(exclusive=True)
+    async def prompt_yes(self) -> None:
+        await q_out.put(RemoveNode(self._node))
+        self.post_message(self.Closed())
+
+    @on(Button.Pressed, "#prompt-no")
+    def prompt_no(self) -> None:
+        self.post_message(self.Closed())
+
+    def compose(self) -> ComposeResult:
+        yield Label(f"Are you sure to remove node {show_uuid(self._node)} ?")
+        with HorizontalGroup():
+            yield Button("YES", id="prompt-yes", variant="warning", flat=True)
+            yield Button("NO", id="prompt-no", variant="primary", flat=True)
+
+
+class Node(VerticalGroup):
     def __init__(self, node: str, tasks: List[str]):
         super().__init__()
         self._node = node
         self._tasks = tasks
 
+    BINDINGS = [("backspace", "remove_node", "Delete")]
+
+    class Xed(Message):
+        def __init__(self, node_id: str):
+            self.node_id = node_id
+            super().__init__()
+
     async def action_remove_node(self) -> None:
-        self.remove_node()
-
-    @work(exclusive=True)
-    async def remove_node(self) -> None:
-        await q_out.put(RemoveNode(self._node))
-
-    class X(Widget):
-        def __init__(self, node: "Node", *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self._node = node
-
-        def compose(self) -> ComposeResult:
-            yield Label("✖", classes="node-x")
-
-        async def on_click(self, event: Click) -> None:
-            self._node.remove_node()
+        self.post_message(self.Xed(self._node))
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="node-footer-outer"):
@@ -210,7 +245,7 @@ class Node(VerticalGroup):
                 Static(show_uuid(self._node), classes="node-header"),
                 id="node-footer-inner",
             )
-            yield self.X(self)
+            yield X(self)
         tasks = [Static(show_uuid(task)) for task in self._tasks]
         yield ScrollableContainer(*tasks, can_focus=True, classes="node-body")
 
@@ -289,6 +324,14 @@ class RendezVous(App):
         self.theme = (
             self.THEME_LIGHT if self.theme == self.THEME_DARK else self.THEME_DARK
         )
+
+    def on_node_xed(self, message: Node.Xed) -> None:
+        self.mount(Prompt(message.node_id))
+        button = self.query_one("#prompt-yes", Button)
+        self.set_focus(button)
+
+    def on_prompt_closed(self, message: Prompt.Closed) -> None:
+        self.query_one(Prompt).remove()
 
 
 if __name__ == "__main__":
