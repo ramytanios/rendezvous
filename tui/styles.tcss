@@ -80,3 +80,15 @@ ScrollableContainer {
       color: $warning
     }
 }
+
+Prompt {
+  border: round $warning;
+  width: 50%;
+  position: absolute;
+  offset: 20 10;
+  content-align: center middle;
+}
+
+Prompt * > {
+    margin: 0 1;
+}

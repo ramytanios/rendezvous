@@ -20,5 +20,6 @@ Sleep 1s
 Tab
 Sleep 1s
 Backspace
-
+Sleep 1s
+Type "Y"
 Sleep 1s
