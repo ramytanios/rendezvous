@@ -68,13 +68,15 @@ object Main extends IOApp.Simple:
                   outQ.offer(dtos.WSProtocol.Server.Ttds(ttds.map((nodeId, ttd) =>
                     nodeId.value -> ttd
                   )))
-            .concurrently:
-              fs2.Stream
-                .fixedRateStartImmediately[IO](1.second)
-                .evalMap(_ => ttdsRef.update(_.view.mapValues(ttl => max(ttl - 1, 0)).toMap))
       yield outMessage
 
   override def run: IO[Unit] =
     Engine.resource().use: engine =>
       SignallingRef.of[IO, Map[NodeID, Long]](Map.empty).flatMap: ttdsRef =>
-        new Server("127.0.0.1", 8090, ws(engine, ttdsRef)).run
+        (
+          fs2.Stream
+            .fixedRateStartImmediately[IO](1.second)
+            .evalMap(_ => ttdsRef.update(_.view.mapValues(ttl => max(ttl - 1, 0)).toMap))
+            .compile.drain,
+          new Server("127.0.0.1", 8090, ws(engine, ttdsRef)).run
+        ).parTupled.void
