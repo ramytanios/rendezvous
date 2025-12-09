@@ -10,12 +10,12 @@ Using:
 - [ff4s-shoelace](https://github.com/buntec/ff4s-shoelace)
 - [ff4s-heroicons](https://github.com/buntec/ff4s-heroicons)
 
-Python TUI:
+TUI:
 
 - [textual](https://textual.textualize.io)
 
-### Scala web app:
-<img alt="Demo" src="demo.gif" width="600" />
-
-### Python TUI:
+### TUI
 <img alt="Demo" src="./tui/tui.gif" width="600" />
+
+### Web app
+<img alt="Demo" src="demo.gif" width="600" />
