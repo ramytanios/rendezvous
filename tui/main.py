@@ -10,6 +10,7 @@ from textual import log, work
 from textual._on import on
 from textual.app import App, ComposeResult
 from textual.containers import (
+    Container,
     Horizontal,
     HorizontalGroup,
     ScrollableContainer,
@@ -187,10 +188,10 @@ class X(Widget):
         yield Label("✖", classes="node-x")
 
     async def on_click(self, event: Click) -> None:
-        self._node.remove_node()
+        self._node.action_remove_node()
 
 
-class Prompt(VerticalGroup):
+class Dialogue(Container):
     def __init__(self, node_id: str, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._node = node_id
@@ -201,26 +202,29 @@ class Prompt(VerticalGroup):
     BINDINGS = [("Y", "yes", "YES"), ("N", "no", "NO")]
 
     async def action_yes(self) -> None:
-        self.prompt_yes()
+        self.dialogue_yes()
 
     async def action_no(self) -> None:
-        self.prompt_no()
+        self.dialogue_no()
 
-    @on(Button.Pressed, "#prompt-yes")
+    @on(Button.Pressed, "#dialogue-yes")
     @work(exclusive=True)
-    async def prompt_yes(self) -> None:
+    async def dialogue_yes(self) -> None:
         await q_out.put(RemoveNode(self._node))
         self.post_message(self.Closed())
 
-    @on(Button.Pressed, "#prompt-no")
-    def prompt_no(self) -> None:
+    @on(Button.Pressed, "#dialogue-no")
+    def dialogue_no(self) -> None:
         self.post_message(self.Closed())
 
     def compose(self) -> ComposeResult:
-        yield Label(f"Are you sure to remove node {show_uuid(self._node)} ?")
-        with HorizontalGroup():
-            yield Button("YES", id="prompt-yes", variant="warning", flat=True)
-            yield Button("NO", id="prompt-no", variant="primary", flat=True)
+        yield Static(
+            f"Are you sure to remove node {show_uuid(self._node)} ?",
+            classes="dialogue-question",
+        )
+        with Horizontal(classes="dialogue-buttons"):
+            yield Button("YES", id="dialogue-yes", variant="success", flat=True)
+            yield Button("NO", id="dialogue-no", variant="error", flat=True)
 
 
 class Node(VerticalGroup):
@@ -242,16 +246,16 @@ class Node(VerticalGroup):
         self.post_message(self.Xed(self._node))
 
     def watch_ttd(self, new_ttd: int) -> None:
-        self.query_one(f"#static-label-{self._node}", Static).update(
+        self.query_one("#static", Static).update(
             f"{show_uuid(self._node)} - {new_ttd}"
         )
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="node-footer-outer"):
-            with Horizontal(id=("node-footer-inner")):
+            with Horizontal(id="node-footer-inner"):
                 yield Static(
                     f"{show_uuid(self._node)} {self.ttd}",
-                    id=f"static-label-{self._node}",
+                    id="static",
                     classes="node-header",
                 )
             yield X(self)
@@ -378,12 +382,12 @@ class RendezVous(App):
         )
 
     def on_node_xed(self, message: Node.Xed) -> None:
-        self.mount(Prompt(message.node_id))
-        button = self.query_one("#prompt-yes", Button)
+        self.mount(Dialogue(message.node_id, id="dialogue"))
+        button = self.query_one("#dialogue-yes", Button)
         self.set_focus(button)
 
-    def on_prompt_closed(self, message: Prompt.Closed) -> None:
-        self.query_one(Prompt).remove()
+    def on_dialogue_closed(self, message: Dialogue.Closed) -> None:
+        self.query_one(Dialogue).remove()
 
 
 if __name__ == "__main__":

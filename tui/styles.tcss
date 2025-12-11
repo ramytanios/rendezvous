@@ -81,14 +81,28 @@ ScrollableContainer {
     }
 }
 
-Prompt {
-  border: round $warning;
-  width: 50%;
-  position: absolute;
-  offset: 20 10;
-  content-align: center middle;
+#dialogue Button {
+    margin: 0 1;
+    width: 1fr;
 }
 
-Prompt * > {
-    margin: 0 1;
+#dialogue {
+    height: 100%;
+    margin: 6 12;
+    color: $text;
+    border: round $warning;
+    offset: 10 10;
+    position: absolute;
+}
+
+.dialogue-question {
+    text-style: bold;
+    height: 100%;
+    content-align: center middle;
+}
+
+.dialogue-buttons {
+    width: 100%;
+    height: auto;
+    dock: bottom;
 }
