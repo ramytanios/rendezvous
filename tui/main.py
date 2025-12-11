@@ -224,8 +224,10 @@ class Prompt(VerticalGroup):
 
 
 class Node(VerticalGroup):
-    def __init__(self, node: str, tasks: List[str]):
-        super().__init__()
+    ttd: reactive[int | None] = reactive(None)
+
+    def __init__(self, node: str, tasks: List[str], *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._node = node
         self._tasks = tasks
 
@@ -239,32 +241,52 @@ class Node(VerticalGroup):
     async def action_remove_node(self) -> None:
         self.post_message(self.Xed(self._node))
 
+    def watch_ttd(self, new_ttd: int) -> None:
+        self.query_one(f"#static-label-{self._node}", Static).update(
+            f"{show_uuid(self._node)} - {new_ttd}"
+        )
+
     def compose(self) -> ComposeResult:
         with Horizontal(id="node-footer-outer"):
-            yield Horizontal(
-                Static(show_uuid(self._node), classes="node-header"),
-                id="node-footer-inner",
-            )
+            with Horizontal(id=("node-footer-inner")):
+                yield Static(
+                    f"{show_uuid(self._node)} {self.ttd}",
+                    id=f"static-label-{self._node}",
+                    classes="node-header",
+                )
             yield X(self)
         tasks = [Static(show_uuid(task)) for task in self._tasks]
         yield ScrollableContainer(*tasks, can_focus=True, classes="node-body")
 
 
 class Monitor(HorizontalGroup):
-    content: reactive[List[Tuple[str, List[str]]] | None] = reactive(
-        None, recompose=True, layout=True
+    nodes: reactive[List[Tuple[str, List[str]]]] = reactive(
+        [], recompose=True, layout=True
     )
 
+    ttds: reactive[dict[str, int]] = reactive({})
+
+    def watch_ttds(self, new_ttds: dict[str, int]) -> None:
+        for node_id, _ in self.nodes:
+            node = self.query_one(f"#node-{node_id}", Node)
+            ttd_maybe = new_ttds.get(node._node)
+            match ttd_maybe:
+                case None:
+                    return None
+                case ttd:
+                    node.ttd = ttd
+
     def compose(self) -> ComposeResult:
-        match self.content:
-            case None:
-                pass
-            case d:
-                for node, tasks in d:
-                    yield Node(node, tasks)
+        for node, tasks in self.nodes:
+            yield Node(node, tasks, id=f"node-{node}")
 
 
 class RendezVous(App):
+    def __init__(self, *args, **kwargs):
+        self.q_nodes = asyncio.Queue[Nodes](1000)
+        self.q_ttds = asyncio.Queue[Ttds](1000)
+        super().__init__()
+
     BINDINGS = [
         ("d", "toggle_dark", "Toggle dark mode"),
         ("n", "add_node", "Add node"),
@@ -278,19 +300,49 @@ class RendezVous(App):
     THEME_LIGHT = "catppuccin-latte"
     THEME_DARK = "catppuccin-mocha"
 
-    async def update_nodes_async(self) -> None:
-        lock = asyncio.Lock()
+    async def monitor_q_sizes(self, Q: asyncio.Queue) -> None:
+        while True:
+            log.debug(f"queue current size {Q.qsize()}")
+            await asyncio.sleep(3)
+
+    async def ws_recv_async(self) -> None:
         while True:
             msg = await q_in.get()
             match msg:
-                case Nodes(nodes, _):
-                    async with lock:
-                        self.query_one(Monitor).content = nodes
+                case Nodes() as nodes:
+                    try:
+                        self.q_nodes.put_nowait(nodes)
+                    except asyncio.QueueFull as e:
+                        s = self.q_nodes.qsize()
+                        log.warning(f"Q `q_nodes` is full, size={s}: {e}")
+                case Ttds() as ttds:
+                    try:
+                        self.q_ttds.put_nowait(ttds)
+                    except asyncio.QueueFull as e:
+                        s = self.q_ttds.qsize()
+                        log.warning(f"Q `q_ttds` is full, size={s}: {e}")
+
+    async def update_nodes_async(self) -> None:
+        lock = asyncio.Lock()
+        while True:
+            nodes = await self.q_nodes.get()
+            async with lock:
+                self.query_one(Monitor).nodes = nodes.nodes
+
+    async def update_ttds_async(self) -> None:
+        lock = asyncio.Lock()
+        while True:
+            ttds = await self.q_ttds.get()
+            log.warning(ttds)
+            async with lock:
+                self.query_one(Monitor).ttds = ttds.ttds
 
     async def on_mount(self) -> None:
         self.theme = self.THEME_DARK
         self.run_worker(ws_async(), exit_on_error=False)
-        self.run_worker(self.update_nodes_async())
+        self.run_worker(self.ws_recv_async(), exit_on_error=False)
+        self.run_worker(self.update_nodes_async(), exit_on_error=False)
+        self.run_worker(self.update_ttds_async(), exit_on_error=False)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         match event.worker.state:
