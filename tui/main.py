@@ -272,12 +272,16 @@ class Monitor(HorizontalGroup):
     ttds: reactive[dict[str, int]] = reactive({})
 
     def watch_ttds(self, new_ttds: dict[str, int]) -> None:
-        if self.is_mounted: # broken
-            log.warning(self.tree)
+        # try except is used as a hack to workaround early DOM query.
+        # `self.is_mounted` is not suitable here as this widget is mounted
+        # first and `recompose=True` does not trigger a new mounting
+        try:
             for node_id, _ in self.nodes:
                 node = self.query_one(f"#node-{node_id}", Node)
                 ttd = new_ttds.get(node._node)
                 node.ttd = ttd
+        except Exception as e:
+            log.warning(e)
 
     def compose(self) -> ComposeResult:
         for node, tasks in self.nodes:
