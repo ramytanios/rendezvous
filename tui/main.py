@@ -16,13 +16,12 @@ from textual.containers import (
     ScrollableContainer,
     VerticalGroup,
 )
+from textual.css.query import NoMatches
 from textual.events import Click, Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Button, Footer, Header, Label, Static
 from textual.worker import Worker, WorkerState
-
-WS_URL = "ws://127.0.0.1:8090/api/ws"
 
 
 def pascal_to_snake(name: str) -> str:
@@ -129,7 +128,7 @@ q_in = asyncio.Queue[In]()
 
 
 async def ws_async() -> None:
-    async with websockets.connect(WS_URL) as ws:
+    async with websockets.connect("ws://127.0.0.1:8090/api/ws") as ws:
 
         async def send_heartbeat():
             while True:
@@ -272,16 +271,23 @@ class Monitor(HorizontalGroup):
     ttds: reactive[dict[str, int]] = reactive({})
 
     def watch_ttds(self, new_ttds: dict[str, int]) -> None:
-        # try except is used as a hack to workaround early DOM query.
-        # `self.is_mounted` is not suitable here as this widget is mounted
-        # first and `recompose=True` does not trigger a new mounting
-        try:
+        # a hack to workaround early DOM query. `self.is_mounted` is not 
+        # suitable here as this widget is mounted first and `recompose=True` 
+        # does not trigger a new mount.
+        def is_ok(node_id: str) -> bool:
+            res = True
+            try:
+                self.query_one(f"#node-{node_id}")
+            except NoMatches:
+                res = False
+            return res
+
+        ready_for_query = all([is_ok(node) for node, _ in self.nodes])
+        if ready_for_query:
             for node_id, _ in self.nodes:
                 node = self.query_one(f"#node-{node_id}", Node)
                 ttd = new_ttds.get(node._node)
                 node.ttd = ttd
-        except Exception as e:
-            log.warning(e)
 
     def compose(self) -> ComposeResult:
         for node, tasks in self.nodes:
@@ -289,11 +295,6 @@ class Monitor(HorizontalGroup):
 
 
 class RendezVous(App):
-    def __init__(self, *args, **kwargs):
-        self.q_nodes = asyncio.Queue[Nodes](1000)
-        self.q_ttds = asyncio.Queue[Ttds](1000)
-        super().__init__()
-
     BINDINGS = [
         ("d", "toggle_dark", "Toggle dark mode"),
         ("n", "add_node", "Add node"),
@@ -306,6 +307,9 @@ class RendezVous(App):
 
     THEME_LIGHT = "catppuccin-latte"
     THEME_DARK = "catppuccin-mocha"
+
+    q_nodes = asyncio.Queue[Nodes](1000)
+    q_ttds = asyncio.Queue[Ttds](1000)
 
     async def monitor_q_sizes(self, Q: asyncio.Queue) -> None:
         while True:
