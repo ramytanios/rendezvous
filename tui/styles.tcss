@@ -77,7 +77,8 @@ Horizontal#node-footer-inner {
 
 ScrollableContainer {
     &:focus {
-      color: $warning
+      color: $warning;
+      border: ascii $warning;
     }
 }
 

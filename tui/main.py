@@ -246,18 +246,19 @@ class Node(VerticalGroup):
         self.post_message(self.Xed(self._node))
 
     def watch_ttd(self, new_ttd: int) -> None:
-        self.query_one("#static", Static).update(
-            f"{show_uuid(self._node)} - {new_ttd}"
-        )
+        if self.is_mounted:
+            self.query_one("#static", Static).update(
+                f"{show_uuid(self._node)} - {new_ttd}"
+            )
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="node-footer-outer"):
             with Horizontal(id="node-footer-inner"):
-                yield Static(
-                    f"{show_uuid(self._node)} {self.ttd}",
-                    id="static",
-                    classes="node-header",
-                )
+                label = f"{show_uuid(self._node)}"
+                match self.ttd:
+                    case int() as ttd:
+                        label = f"{show_uuid(self._node)} {ttd}"
+                yield Static(label, id="static", classes="node-header")
             yield X(self)
         tasks = [Static(show_uuid(task)) for task in self._tasks]
         yield ScrollableContainer(*tasks, can_focus=True, classes="node-body")
@@ -271,14 +272,12 @@ class Monitor(HorizontalGroup):
     ttds: reactive[dict[str, int]] = reactive({})
 
     def watch_ttds(self, new_ttds: dict[str, int]) -> None:
-        for node_id, _ in self.nodes:
-            node = self.query_one(f"#node-{node_id}", Node)
-            ttd_maybe = new_ttds.get(node._node)
-            match ttd_maybe:
-                case None:
-                    return None
-                case ttd:
-                    node.ttd = ttd
+        if self.is_mounted: # broken
+            log.warning(self.tree)
+            for node_id, _ in self.nodes:
+                node = self.query_one(f"#node-{node_id}", Node)
+                ttd = new_ttds.get(node._node)
+                node.ttd = ttd
 
     def compose(self) -> ComposeResult:
         for node, tasks in self.nodes:
@@ -337,7 +336,6 @@ class RendezVous(App):
         lock = asyncio.Lock()
         while True:
             ttds = await self.q_ttds.get()
-            log.warning(ttds)
             async with lock:
                 self.query_one(Monitor).ttds = ttds.ttds
 
