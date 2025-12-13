@@ -270,7 +270,7 @@ class Monitor(HorizontalGroup):
     ttds: reactive[dict[str, int]] = reactive({})
 
     # async is important here, it guarantees watcher is added to the widget's
-    # event Q and thereforeis only executed  after the `compose`
+    # event Q and therefore is only executed  after the `compose`
     async def watch_ttds(self, new_ttds: dict[str, int]) -> None:
         for node_id, _ in self.nodes:
             node = self.query_one(f"#node-{node_id}", Node)

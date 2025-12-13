@@ -77,3 +77,7 @@ console-tui:
 [working-directory('tui')]
 serve-tui:
     uv run server.py
+
+[working-directory('tui')]
+tui-gif:
+    vhs tui.tape
