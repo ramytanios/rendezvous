@@ -87,7 +87,8 @@ ScrollableContainer {
     width: 1fr;
 }
 
-#dialogue {
+#dialogue { 
+    min-height: 8;
     height: 100%;
     margin: 6 12;
     color: $text;

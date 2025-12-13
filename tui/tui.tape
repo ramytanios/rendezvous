@@ -5,7 +5,7 @@ Set Theme "Catppuccin Frappe"
 Set Shell "bash"
 Set FontSize 20
 Set Width 1200
-Set Height 800
+Set Height 600
 
 Type "just dev-tui"
 Enter

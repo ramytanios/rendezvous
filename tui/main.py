@@ -16,7 +16,6 @@ from textual.containers import (
     ScrollableContainer,
     VerticalGroup,
 )
-from textual.css.query import NoMatches
 from textual.events import Click, Message
 from textual.reactive import reactive
 from textual.widget import Widget
@@ -270,24 +269,13 @@ class Monitor(HorizontalGroup):
 
     ttds: reactive[dict[str, int]] = reactive({})
 
-    def watch_ttds(self, new_ttds: dict[str, int]) -> None:
-        # a hack to workaround early DOM query. `self.is_mounted` is not 
-        # suitable here as this widget is mounted first and `recompose=True` 
-        # does not trigger a new mount.
-        def is_ok(node_id: str) -> bool:
-            res = True
-            try:
-                self.query_one(f"#node-{node_id}")
-            except NoMatches:
-                res = False
-            return res
-
-        ready_for_query = all([is_ok(node) for node, _ in self.nodes])
-        if ready_for_query:
-            for node_id, _ in self.nodes:
-                node = self.query_one(f"#node-{node_id}", Node)
-                ttd = new_ttds.get(node._node)
-                node.ttd = ttd
+    # async is important here, it guarantees watcher is added to the widget's
+    # event Q and thereforeis only executed  after the `compose`
+    async def watch_ttds(self, new_ttds: dict[str, int]) -> None:
+        for node_id, _ in self.nodes:
+            node = self.query_one(f"#node-{node_id}", Node)
+            ttd = new_ttds.get(node._node)
+            node.ttd = ttd
 
     def compose(self) -> ComposeResult:
         for node, tasks in self.nodes:
