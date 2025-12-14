@@ -264,10 +264,13 @@ class Node(VerticalGroup):
 
 class Monitor(HorizontalGroup):
     nodes: reactive[List[Tuple[str, List[str]]]] = reactive(
-        [], recompose=True, layout=True
+        [], recompose=True, layout=True, bindings=True
     )
 
     ttds: reactive[dict[str, int]] = reactive({})
+
+    nodes_lock = asyncio.Lock()
+    ttds_lock = asyncio.Lock()
 
     # async is important here, it guarantees watcher is added to the widget's
     # event Q and therefore is only executed  after the `compose`
@@ -281,6 +284,14 @@ class Monitor(HorizontalGroup):
         for node, tasks in self.nodes:
             yield Node(node, tasks, id=f"node-{node}")
 
+    async def update_nodes(self, nodes: List[Tuple[str, List[str]]]) -> None:
+        async with self.nodes_lock:
+            self.nodes = nodes
+
+    async def update_ttds(self, ttds: dict[str, int]) -> None:
+        async with self.ttds_lock:
+            self.ttds = ttds
+
 
 class RendezVous(App):
     BINDINGS = [
@@ -291,13 +302,23 @@ class RendezVous(App):
     ]
     CSS_PATH = "styles.tcss"
 
-    is_app_healthy = reactive(False)
+    is_app_healthy = reactive(False, bindings=True)
 
     THEME_LIGHT = "catppuccin-latte"
     THEME_DARK = "catppuccin-mocha"
 
     q_nodes = asyncio.Queue[Nodes](1000)
     q_ttds = asyncio.Queue[Ttds](1000)
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "quit":
+            return True
+        elif not self.is_app_healthy:
+            return None
+        elif action == "add_task" and not self.query_one(Monitor).nodes:
+            return None
+        else:
+            return True
 
     async def monitor_q_sizes(self, Q: asyncio.Queue) -> None:
         while True:
@@ -322,18 +343,14 @@ class RendezVous(App):
                         log.warning(f"Q `q_ttds` is full, size={s}: {e}")
 
     async def update_nodes_async(self) -> None:
-        lock = asyncio.Lock()
         while True:
             nodes = await self.q_nodes.get()
-            async with lock:
-                self.query_one(Monitor).nodes = nodes.nodes
+            await self.query_one(Monitor).update_nodes(nodes.nodes)
 
     async def update_ttds_async(self) -> None:
-        lock = asyncio.Lock()
         while True:
             ttds = await self.q_ttds.get()
-            async with lock:
-                self.query_one(Monitor).ttds = ttds.ttds
+            await self.query_one(Monitor).update_ttds(ttds.ttds)
 
     async def on_mount(self) -> None:
         self.theme = self.THEME_DARK
