@@ -56,7 +56,7 @@ watch-backend:
 
 [working-directory('frontend')]
 serve-frontend:
-    live-server --entry-file=index.html --proxy=/api:http://localhost:{{ port }}/api
+    npx live-server --entry-file=index.html --proxy=/api:http://localhost:{{ port }}/api
 
 [working-directory('frontend')]
 watch-css:
