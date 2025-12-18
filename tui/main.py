@@ -130,27 +130,33 @@ async def ws_async() -> None:
     async with websockets.connect("ws://127.0.0.1:8090/api/ws") as ws:
 
         async def send_heartbeat():
-            while True:
-                try:
+            try:
+                while True:
                     await q_out.put(Ping())
-                except Exception as e:
-                    log.warning(f"sending heartbeat failed: {e}")
-                await asyncio.sleep(3)
+                    await asyncio.sleep(3)
+            except Exception as e:
+                e.add_note(f"sending heartbeat failed: {e}")
+                raise
 
         async def send_loop():
-            while True:
-                msg = await q_out.get()
-                log.info(f"sent ws message: {msg}")
-                await ws.send(json.dumps(msg.to_js()))
+            try:
+                while True:
+                    msg = await q_out.get()
+                    await ws.send(json.dumps(msg.to_js()))
+                    log.info(f"sent ws message: {msg}")
+            except Exception as e:
+                e.add_note(f"send loop failed: {e}")
+                raise
 
         async def recv_loop():
-            async for msg in ws:
-                try:
+            try:
+                async for msg in ws:
                     js = json.loads(msg)
                     in_msg = In.from_js(js)
                     await q_in.put(in_msg)
-                except Exception as e:
-                    log.warning(f"failed to decode {msg}: {e}")
+            except Exception as e:
+                e.add_note(f"recv loop failed: {e}")
+                raise
 
         try:
             async with asyncio.TaskGroup() as tg:
