@@ -1,9 +1,8 @@
 import asyncio
+import dataclasses
 import json
-import re
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Literal, Tuple
+from typing import List, Tuple
 
 import websockets
 from textual import log, work
@@ -23,107 +22,100 @@ from textual.widgets import Button, Footer, Header, Label, Static
 from textual.worker import Worker, WorkerState
 
 
-def pascal_to_snake(name: str) -> str:
-    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+@dataclass
+class MsgPing:
+    type: str = "Ping"
 
 
-def convert_keys(d: dict) -> dict:
-    return {pascal_to_snake(k): v for k, v in d.items()}
+@dataclass
+class MsgAddNode:
+    type: str = "AddNode"
+
+
+@dataclass
+class MsgAddTask:
+    type: str = "AddTask"
+
+
+@dataclass
+class MsgRemoveNode:
+    node: str
+    type: str = "RemoveNode"
+
+
+@dataclass
+class MsgPong:
+    type: str = "Pong"
+
+
+@dataclass
+class MsgNodes:
+    nodes: List[Tuple[str, List[str]]]
+    type: str = "Nodes"
+
+
+@dataclass
+class MsgNodeAdded:
+    node: str
+    type: str = "NodeAdded"
+
+
+@dataclass
+class MsgNodeRemoved:
+    node: str
+    type: str = "NodeRemoved"
+
+
+@dataclass
+class MsgUpdate:
+    node: str
+    task: str
+    type: str = "Update"
+
+
+@dataclass
+class MsgTtds:
+    ttds: dict[str, int]
+    type: str = "Ttds"
+
+
+type MsgClient = MsgPing | MsgAddNode | MsgAddTask | MsgRemoveNode
+
+type MsgServer = (
+    MsgPong | MsgNodes | MsgNodeAdded | MsgNodeRemoved | MsgUpdate | MsgTtds
+)
+
+
+def decode_server_msg(msg: str) -> MsgServer:
+    match json.loads(msg):
+        case {"type": "Pong"}:
+            return MsgPong()
+        case {"type": "Nodes", "nodes": nodes}:
+            return MsgNodes(nodes)
+        case {"type": "NodeAdded", "node": node}:
+            return MsgNodeAdded(node)
+        case {"type": "NodeRemoved", "node": node}:
+            return MsgNodeRemoved(node)
+        case {"type": "Update", "node": node, "task": task}:
+            return MsgUpdate(node, task)
+        case {"type": "Ttds", "ttds": ttds}:
+            return MsgTtds(ttds)
+
+
+class DataclassJsonEncoder(json.JSONEncoder):
+    def default(self, o) -> dict[str, any]:
+        if dataclasses.is_dataclass(o):
+            return dataclasses.asdict(o)
+        return super().default(o)
 
 
 def show_uuid(uuid: str) -> str:
     return uuid.split("-")[0]
 
 
-@dataclass
-class Out(ABC):
-    @abstractmethod
-    def to_js(self) -> dict[str, any]:
-        pass
-
-
-@dataclass
-class Ping(Out):
-    def to_js(self) -> dict[str, any]:
-        return {"Ping": {}}
-
-
-@dataclass
-class AddNode(Out):
-    def to_js(self) -> dict[str, any]:
-        return {"AddNode": {}}
-
-
-@dataclass
-class AddTask(Out):
-    def to_js(self) -> dict[str, any]:
-        return {"AddTask": {}}
-
-
-@dataclass
-class RemoveNode(Out):
-    id: str
-
-    def to_js(self) -> dict[str, any]:
-        return {"RemoveNode": {"id": self.id}}
-
-
-@dataclass
-class In(ABC):
-    pass
-
-    @staticmethod
-    def from_js(data: dict[str, any]) -> "In":
-        match data.get("type"):
-            case None:
-                raise Exception(f"missing `type` discriminator in {data}")
-            case t:
-                match globals().get(t):
-                    case None:
-                        raise Exception(f"failed to decode data {data}")
-                    case kls:
-                        return kls(**convert_keys(data))
-
-
-@dataclass
-class Pong(In):
-    type: Literal["Pong"] = "Pong"
-
-
-@dataclass
-class Nodes(In):
-    nodes: List[Tuple[str, List[str]]]
-    type: Literal["Nodes"] = "Nodes"
-
-
-@dataclass
-class NodeAdded(In):
-    node_id: str
-    type: Literal["NodeAdded"] = "NodeAdded"
-
-
-@dataclass
-class NodeRemoved(In):
-    node_id: str
-    type: Literal["NodeRemoved"] = "NodeRemoved"
-
-
-@dataclass
-class Update(In):
-    node_id: str
-    task_id: str
-    type: Literal["Update"] = "Update"
-
-
-@dataclass
-class Ttds(In):
-    ttds: dict[str, int]
-    type: Literal["Ttds"] = "Ttds"
-
-
 # queues
-q_out = asyncio.Queue[Out]()
-q_in = asyncio.Queue[In]()
+q_out = asyncio.Queue[MsgClient]()
+q_in = asyncio.Queue[MsgServer]()
 
 
 async def ws_async() -> None:
@@ -132,7 +124,7 @@ async def ws_async() -> None:
         async def send_heartbeat():
             try:
                 while True:
-                    await q_out.put(Ping())
+                    await q_out.put(MsgPing())
                     await asyncio.sleep(3)
             except Exception as e:
                 e.add_note(f"sending heartbeat failed: {e}")
@@ -142,7 +134,7 @@ async def ws_async() -> None:
             try:
                 while True:
                     msg = await q_out.get()
-                    await ws.send(json.dumps(msg.to_js()))
+                    await ws.send(json.dumps(msg, cls=DataclassJsonEncoder))
                     log.info(f"sent ws message: {msg}")
             except Exception as e:
                 e.add_note(f"send loop failed: {e}")
@@ -151,9 +143,8 @@ async def ws_async() -> None:
         async def recv_loop():
             try:
                 async for msg in ws:
-                    js = json.loads(msg)
-                    in_msg = In.from_js(js)
-                    await q_in.put(in_msg)
+                    msg = decode_server_msg(msg)
+                    await q_in.put(msg)
             except Exception as e:
                 e.add_note(f"recv loop failed: {e}")
                 raise
@@ -171,12 +162,12 @@ class Control(HorizontalGroup):
     @on(Button.Pressed, "#add-node")
     @work(exclusive=True)
     async def add_node(self) -> None:
-        await q_out.put(AddNode())
+        await q_out.put(MsgAddNode())
 
     @on(Button.Pressed, "#add-task")
     @work(exclusive=True)
     async def add_task(self) -> None:
-        await q_out.put(AddTask())
+        await q_out.put(MsgAddTask())
 
     def compose(self) -> None:
         yield Button("Add Node", id="add-node", variant="default", flat=True)
@@ -214,7 +205,7 @@ class Dialogue(Container):
     @on(Button.Pressed, "#dialogue-yes")
     @work(exclusive=True)
     async def dialogue_yes(self) -> None:
-        await q_out.put(RemoveNode(self._node))
+        await q_out.put(MsgRemoveNode(self._node))
         self.post_message(self.Closed())
 
     @on(Button.Pressed, "#dialogue-no")
@@ -313,8 +304,8 @@ class RendezVous(App):
     THEME_LIGHT = "catppuccin-latte"
     THEME_DARK = "catppuccin-mocha"
 
-    q_nodes = asyncio.Queue[Nodes](1000)
-    q_ttds = asyncio.Queue[Ttds](1000)
+    q_nodes = asyncio.Queue[MsgNodes](1000)
+    q_ttds = asyncio.Queue[MsgTtds](1000)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action == "quit":
@@ -335,13 +326,13 @@ class RendezVous(App):
         while True:
             msg = await q_in.get()
             match msg:
-                case Nodes() as nodes:
+                case MsgNodes() as nodes:
                     try:
                         self.q_nodes.put_nowait(nodes)
                     except asyncio.QueueFull as e:
                         s = self.q_nodes.qsize()
                         log.warning(f"Q `q_nodes` is full, size={s}: {e}")
-                case Ttds() as ttds:
+                case MsgTtds() as ttds:
                     try:
                         self.q_ttds.put_nowait(ttds)
                     except asyncio.QueueFull as e:
