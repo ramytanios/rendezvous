@@ -56,7 +56,10 @@ watch-backend:
 
 [working-directory('frontend')]
 serve-frontend:
-    npx live-server --entry-file=index.html --proxy=/api:http://localhost:{{ port }}/api
+    npx live-server \
+      --entry-file=index.html \
+      --proxy=/api:http://localhost:{{ port }}/api \
+      --mount=/shoelace:./node_modules/@shoelace-style/shoelace
 
 [working-directory('frontend')]
 watch-css:

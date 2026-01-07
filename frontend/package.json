@@ -12,5 +12,8 @@
     "@tailwindcss/cli": "^4.1.17",
     "live-server": "^1.2.2",
     "tailwindcss": "^4.1.17"
+  },
+  "dependencies": {
+    "@shoelace-style/shoelace": "^2.20.1"
   }
 }
