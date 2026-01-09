@@ -86,7 +86,7 @@ type MsgServer = (
 )
 
 
-def decode_server_msg(msg: str) -> MsgServer:
+def decode_server_msg(msg: str) -> MsgServer | None:
     match json.loads(msg):
         case {"type": "Pong"}:
             return MsgPong()
@@ -100,10 +100,12 @@ def decode_server_msg(msg: str) -> MsgServer:
             return MsgUpdate(node, task)
         case {"type": "Ttds", "ttds": ttds}:
             return MsgTtds(ttds)
+        case _:
+            log.warning(f"unexpected server message: {msg}")
 
 
 class DataclassJsonEncoder(json.JSONEncoder):
-    def default(self, o) -> dict[str, any]:
+    def default(self, o):
         if dataclasses.is_dataclass(o):
             return dataclasses.asdict(o)
         return super().default(o)
@@ -143,8 +145,13 @@ async def ws_async() -> None:
         async def recv_loop():
             try:
                 async for msg in ws:
+                    if isinstance(msg, bytes):
+                        msg = msg.decode("utf-8")
                     msg = decode_server_msg(msg)
-                    await q_in.put(msg)
+                    if msg:
+                        await q_in.put(msg)
+                    else:
+                        log.warning("unknown server message")
             except Exception as e:
                 e.add_note(f"recv loop failed: {e}")
                 raise
@@ -169,7 +176,7 @@ class Control(HorizontalGroup):
     async def add_task(self) -> None:
         await q_out.put(MsgAddTask())
 
-    def compose(self) -> None:
+    def compose(self):
         yield Button("Add Node", id="add-node", variant="default", flat=True)
         yield Button("Add Task", id="add-task", variant="default", flat=True)
 
@@ -183,7 +190,7 @@ class X(Widget):
         yield Label("✖", classes="node-x")
 
     async def on_click(self, event: Click) -> None:
-        self._node.action_remove_node()
+        await self._node.action_remove_node()
 
 
 class Dialogue(Container):
